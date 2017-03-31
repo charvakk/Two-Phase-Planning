@@ -28,42 +28,42 @@ def tuckarms(env,robot):
 if __name__ == "__main__":
 
     env = Environment()
-    env.SetViewer('qtcoin')
-    env.Reset()        
+    # env.SetViewer('qtcoin')
+    # env.Reset()        
     # load a scene from ProjectRoom environment XML file
-    env.Load('scenes/hw3.env.xml')
+    # env.Load('scenes/hw3.env.xml')
     time.sleep(0.1)
 
     # 1) get the 1st robot that is inside the loaded scene
     # 2) assign it to the variable named 'robot'
-    robot = env.GetRobots()[0]
+    # robot = env.GetRobots()[0]
 
     ### INITIALIZE YOUR PLUGIN HERE ###
     RaveInitialize()
-    RaveLoadPlugin('build/rrt_connect')
+    RaveLoadPlugin('build/2phase_planning')
     rrt = RaveCreateModule(env,'rrt_module')
     ### END INITIALIZING YOUR PLUGIN ###
    
 
     # tuck in the PR2's arms for driving
-    tuckarms(env,robot);
+    # tuckarms(env,robot);
   
     #set start config
     # jointnames =['l_shoulder_pan_joint','l_shoulder_lift_joint','l_elbow_flex_joint','l_wrist_flex_joint','l_forearm_roll_joint','l_wrist_flex_joint','l_wrist_roll_joint']
 
-    jointnames =['l_shoulder_pan_joint','l_shoulder_lift_joint','l_elbow_flex_joint','l_upper_arm_roll_joint','l_forearm_roll_joint','l_wrist_flex_joint','l_wrist_roll_joint']
-    robot.SetActiveDOFs([robot.GetJoint(name).GetDOFIndex() for name in jointnames])      
+    # jointnames =['l_shoulder_pan_joint','l_shoulder_lift_joint','l_elbow_flex_joint','l_upper_arm_roll_joint','l_forearm_roll_joint','l_wrist_flex_joint','l_wrist_roll_joint']
+    # robot.SetActiveDOFs([robot.GetJoint(name).GetDOFIndex() for name in jointnames])      
     # startconfig = [-0.15,0.075,-1.008,0,0,-0.11,0]
-    startconfig = [-0.15,0.075,-1.008,-0.11,0,-0.11,0]
-    robot.SetActiveDOFValues(startconfig);
-    robot.GetController().SetDesired(robot.GetDOFValues());
-    waitrobot(robot)
+    # startconfig = [-0.15,0.075,-1.008,-0.11,0,-0.11,0]
+    # robot.SetActiveDOFValues(startconfig);
+    # robot.GetController().SetDesired(robot.GetDOFValues());
+    # waitrobot(robot)
 
-    lmodel=databases.linkstatistics.LinkStatisticsModel(robot)
-    if not lmodel.load():
-        lmodel.autogenerate()
+    # lmodel=databases.linkstatistics.LinkStatisticsModel(robot)
+    # if not lmodel.load():
+        # lmodel.autogenerate()
     # lmodel.setRobotResolutions(0.01)
-    lmodel.setRobotWeights()
+    # lmodel.setRobotWeights()
 
     with env:
         goalconfig = [0.449,-0.201,-0.151,-0.11,0,-0.11,0]
@@ -80,12 +80,13 @@ if __name__ == "__main__":
         # command = 'birrt ' + str(goalconfig)
         # for i in range(10):
         # command = 'birrt ' + str(goalconfig)
-        command = 'rrtconnect ' + str(goalconfig)
-        rrt.SendCommand(command)
+        # command = 'rrtconnect ' + str(goalconfig)
+        # rrt.SendCommand(command)
         
+        rrt.SendCommand('test')
         print 'rrt ended'
         ### END OF YOUR CODE ###
-    waitrobot(robot)
+    # waitrobot(robot)
 
     raw_input("Press enter to exit...")
 

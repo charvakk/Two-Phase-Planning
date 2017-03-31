@@ -27,11 +27,13 @@ private:
   /* Configuration of the robot at the node. */
   vector<dReal> m_vdconfiguration;
 
+  /* Costs for A* variants. f = g + h */
+  float m_ffCost, m_fgCost, m_fhCost;
+
   /* Pointer to the parent node. */
   NodePtr m_pparentNode;
 
-  /* Costs for A* variants. f = g + h */
-  float m_ffCost, m_fgCost, m_fhCost;
+
 
 public:
 
