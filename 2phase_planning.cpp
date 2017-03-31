@@ -22,6 +22,10 @@ dReal GOAL_BIAS = 31;
 #define CLOSE_ENOUGH 0.2
 #define SMOOTHING_ITERATIONS 200
 
+/***************A STAR DEFINES*************************************/
+#define STEP_COST 0.05 // used for gCost || in A-STAR
+#define STEP_SIZE_ASTAR 0.1
+
 typedef boost::shared_ptr<Node> NodePtr;
 typedef boost::shared_ptr<NodeTree> TreePtr;
 
@@ -80,8 +84,9 @@ bool Node::operator !=(Node& other){
   return !this->operator ==(other);
 }
 
+//CHANGED this 
 float Node::getFCost() const{
-  return m_ffCost;
+  return m_fgCost + m_fhCost;
 }
 
 void Node::setFCost(float fCost){
@@ -122,6 +127,7 @@ bool NodeTree::addNode(NodePtr p_node){
   }
 }
 
+//removes multiple occourances of tha value
 void NodeTree::deleteNode(NodePtr node){
   m_vpnodes.erase(std::remove(m_vpnodes.begin(), m_vpnodes.end(), node), m_vpnodes.end());
   }
@@ -265,8 +271,39 @@ public:
   bool AStar(ostream& sout, istream& sin){
 
     InitAStar(sout, sin);
+    //we have start node in _openSet
+    //vector<NodePtr> _openSet
+
+    //initialise g, h
+    _startNode->setHCost(calculate_H(_startNode->getConfiguration(), _goalNode->getConfiguration()));
+    _startNode->setGCost(0);
+
+    _currentNode = _startNode;
+
+    //open set already has start node from InitAStar
 
     while(_openSet.size() != 0){
+
+      //also checks if goal is reached or not
+      _currentNode = getNearestNode();
+      getValidNeibhour(_currentNode);
+      removeNode(_currentNode);
+      _closedSet.push_back(_currentNode);
+
+      for(size_t i=0 ; i < _neibhourConfig.size() ; i++){
+        
+        float tempCost = STEP_COST + _currentNode->getGCost();
+
+        if(checkPass(tempCost, _neibhourConfig[i])){
+          //add in openSet
+          boost::shared_ptr<Node> newNode = new Node(_neibhourConfig[i], _currentNode);
+          newNode->setGCost(tempCost);
+          newNode->setHCost(calculate_H(_neibhourConfig[i], _goalConfig));
+          _openSet.push_back(newNode);
+
+        }
+
+      }
 
 
     }
@@ -275,6 +312,86 @@ public:
   }
 
   /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
+
+  /* ........astar functions............................................... */
+
+  //eucleadean hueristic
+  float calculate_H(vector<dReal> a, vector<dReal> b){
+    float hValue;
+    for(size_t i=0 ; i< a.size() ; i++){
+      hValue += pow((a[i] - b[i]), 2);
+    }
+    hValue = sqrt(hValue);
+    return hValue;
+  }
+
+  //get next node from oenSet
+  NodePtr getNearestNode(){
+    //get least value in _openSet
+    vector<NodePtr>::iterator min_node = min_element(_openSet.begin(), _openSet.end(), compare_f);
+    
+    //check if goal state is reached
+    //TODO check if this is correct return for iterator
+    if(*min_node == _goalNode)
+      return nullptr;
+    else
+      return (*min_node); 
+  }
+
+  bool compare_f(const NodePtr lhs, const NodePtr rhs)
+  { return lhs->getFCost() < rhs->getFCost(); }
+
+  //get the valid neibhour
+  void getValidNeibhour(NodePtr a){
+    
+    vector<dReal> temp = a->getConfiguration();
+
+    float move[3]=[-STEP_SIZE_ASTAR,0,STEP_SIZE_ASTAR];
+    for(float i = 0; i < 3 ; i ++){
+      for(float j = 0; j < 3 ; j ++){
+        for(float k = 0; k < 3 ; k ++){
+              //remove [0, 0 , 0] config
+              if(i*j*k != 1){
+                temp = a->getConfiguration();          
+                temp[0] = temp[0] + move[i];
+                temp[1] = temp[1] + move[j];
+                temp[2] = temp[2] + move[k]; 
+                //check if its valid
+                if(checkValid(temp))
+                  _neibhourConfig.push_back(temp);
+              }
+        }  
+      }  
+    }
+   }
+
+   bool checkValid(vector<dReal> a){
+     _robot->SetActiveDOFValues(a);
+     bool flag = _penv->CheckCollision(_robot);
+
+    return flag;
+   } 
+
+   //remove current node from openSet
+   void removeNode(NodePtr a){
+      _openSet.erase(emove(_openSet.begin(), _openSet.end(), a), -openSet.end());
+  }
+
+  bool checkPass(float a, vector<dReal> b){
+      bool flag = true;
+      for(size_t i=0 ; i<_closedSet.size() ; i++){
+      if(_closedSet[i]->getConfiguration() == b){
+        if(a < _closedSet[i]->getGCost())
+          flag = true;
+        else
+          flag = false
+      }
+      }
+      return flag;
+  }
+
+  /* ........................................................................... */
+
 
   /* Initializes the members by calling the input parser. */
   void Init(ostream& so, istream& si){
@@ -653,8 +770,11 @@ private:
   vector<dReal> _activeUpperLimits;
   vector<RobotBasePtr> _robots;
   RobotBasePtr _robot;
+
   NodePtr _startNode;
   NodePtr _goalNode;
+  NodePtr _currentNode;
+
   vector<dReal> _activeDOFRanges;
   vector<dReal> _dofWeights;
   vector<GraphHandlePtr> _handles;
@@ -665,6 +785,9 @@ private:
 
   vector<NodePtr> _closedSet;
   vector<NodePtr> _openSet;
+  vector<NodePtr> _neibhourSet;
+
+  vector< vector<dReal> > _neibhourConfig;
   };
 
 
