@@ -2,7 +2,7 @@
  * 2phase_planning.h
  *
  *  Created on: Mar 28, 2017
- *      Author: Charvak Kondapalli
+ *      Author: Charvak Kondapalli || Aditya Gupta
  */
 
 #ifndef PHASE_PLANNING_H_
@@ -38,6 +38,8 @@ public:
   Node(vector<dReal> configuration, NodePtr parent);
 
   Node();
+
+  ~Node();
 
   const vector<dReal>& getConfiguration() const;
 
