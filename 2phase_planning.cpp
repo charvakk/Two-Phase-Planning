@@ -2,7 +2,7 @@
  * 2phase_planning.h
  *
  *  Created on: Mar 28, 2017
- *      Author: Charvak Kondapalli
+ *      Author: Charvak Kondapalli || Aditya Gupta
  */
 
 #include "2phase_planning.h"
@@ -171,12 +171,14 @@ public:
   rrt_module(EnvironmentBasePtr penv, std::istream& ss) : ModuleBase(penv) {
     _penv = penv;
     __description = "Implementation of RRT-Connect for RBE 550.";
-    RegisterCommand("birrt",boost::bind(&rrt_module::BiRRT,this,_1,_2),
-                    "Plans and executes path to given goal configuration using Bidirectional RRTs.");
+    // RegisterCommand("birrt",boost::bind(&rrt_module::BiRRT,this,_1,_2),
+    //                 "Plans and executes path to given goal configuration using Bidirectional RRTs.");
 //    RegisterCommand("rrtconnect",boost::bind(&rrt_module::RRTConnect,this,_1,_2),
 //                    "Plans and executes path to given goal configuration using RRTConnect.");
-    RegisterCommand("setbias",boost::bind(&rrt_module::SetBias,this,_1,_2),
-                    "Sets the goal bias for planning with the RRT-Connect.");
+    RegisterCommand("arastar",boost::bind(&rrt_module::ARAStar,this,_1,_2),
+                    "ASTAR Implimentation.");
+    // RegisterCommand("setbias",boost::bind(&rrt_module::SetBias,this,_1,_2),
+    //                 "Sets the goal bias for planning with the RRT-Connect.");
   }
   virtual ~rrt_module() {}
 
@@ -246,8 +248,8 @@ public:
           double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
           double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
 
-//          WriteBiStuffToFile(timeForAlgorithm, timeForSmoothing, (treeA->getSize()+treeB->getSize()), configPath.size());
-//
+  //          WriteBiStuffToFile(timeForAlgorithm, timeForSmoothing, (treeA->getSize()+treeB->getSize()), configPath.size());
+  //
           cout << "Time for computing the path: " << timeForAlgorithm << endl;
           cout << "Time for smoothing the path: " << timeForSmoothing << endl;
           ExecuteTrajectory(configPath2);
@@ -268,51 +270,75 @@ public:
 
   /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
 
-  bool AStar(ostream& sout, istream& sin){
+  // bool AStar(ostream& sout, istream& sin){
 
-    InitAStar(sout, sin);
-    //we have start node in _openSet
-    //vector<NodePtr> _openSet
+  //   InitAStar(sout, sin);
+  //   //we have start node in _openSet
+    
+  //   //initialise g, h
+  //   _startNode->setHCost(calculate_H(_startNode->getConfiguration(), _goalNode->getConfiguration()));
+  //   _startNode->setGCost(0);
 
-    //initialise g, h
-    _startNode->setHCost(calculate_H(_startNode->getConfiguration(), _goalNode->getConfiguration()));
-    _startNode->setGCost(0);
+  //   _currentNode = _startNode;
 
-    _currentNode = _startNode;
+  //   //open set already has start node from InitAStar
 
-    //open set already has start node from InitAStar
+  //   while(_openSet.size() != 0){
 
-    while(_openSet.size() != 0){
+  //     //also checks if goal is reached or not
+  //     _currentNode = getNearestNode();
+  //     getValidNeibhour(_currentNode);
+  //     removeNode(_currentNode);
+  //     _closedSet.push_back(_currentNode);
 
-      //also checks if goal is reached or not
-      _currentNode = getNearestNode();
-      getValidNeibhour(_currentNode);
-      removeNode(_currentNode);
-      _closedSet.push_back(_currentNode);
-
-      for(size_t i=0 ; i < _neibhourConfig.size() ; i++){
+  //     for(size_t i=0 ; i < _neibhourConfig.size() ; i++){
         
-        float tempCost = STEP_COST + _currentNode->getGCost();
+  //       float tempCost = STEP_COST + _currentNode->getGCost();
 
-        if(checkPass(tempCost, _neibhourConfig[i])){
-          //add in openSet
-          boost::shared_ptr<Node> newNode = new Node(_neibhourConfig[i], _currentNode);
-          newNode->setGCost(tempCost);
-          newNode->setHCost(calculate_H(_neibhourConfig[i], _goalConfig));
-          _openSet.push_back(newNode);
-
-        }
-
-      }
-
-
-    }
-
-
-  }
+  //       if(checkPass(tempCost, _neibhourConfig[i])){
+  //         //add in openSet
+  //         boost::shared_ptr<Node> newNode = new Node(_neibhourConfig[i], _currentNode);
+  //         newNode->setGCost(tempCost);
+  //         newNode->setHCost(calculate_H(_neibhourConfig[i], _goalConfig));
+  //         _openSet.push_back(newNode);
+  //       }
+  //     }
+  //   }
+  // }
 
   /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
+  bool ARAStar(ostream& sout, istream& sin){
 
+   //Get initial and final configration 
+   InitAStar(sout, sin);
+
+   //Get start node cost values
+   _startNode->setHCost(calculate_H(_startNode->getConfiguration(), _goalNode->getConfiguration()));
+   _startNode->setGCost(0);
+   _currentNode = _startNode;
+
+   //open set already has start node from InitAStar
+   while(_openSet.size() != 0){
+
+     //also checks if goal is reached or not
+     _currentNode = getNearestNode();
+     getValidNeibhour(_currentNode);
+     removeNode(_currentNode);
+     _closedSet.push_back(_currentNode);
+
+      for(size_t i=0 ; i < _neibhourConfig.size() ; i++){
+
+        float tempCost = STEP_COST + _currentNode->getGCost();
+        if(checkPass(tempCost, _neibhourConfig[i])){
+           //add in openSet
+           boost::shared_ptr<Node> newNode = new Node(_neibhourConfig[i], _currentNode);
+           newNode->setGCost(tempCost);
+           newNode->setHCost(calculate_H(_neibhourConfig[i], _goalConfig));
+           _openSet.push_back(newNode);
+        }
+      }
+    } 
+  }
   /* ........astar functions............................................... */
 
   //eucleadean hueristic
@@ -374,7 +400,7 @@ public:
 
    //remove current node from openSet
    void removeNode(NodePtr a){
-      _openSet.erase(emove(_openSet.begin(), _openSet.end(), a), -openSet.end());
+      _openSet.erase(emove(_openSet.begin(), _openSet.end(), a), _openSet.end());
   }
 
   bool checkPass(float a, vector<dReal> b){
@@ -442,6 +468,7 @@ public:
 
     _openSet.push_back(_startNode);
   }
+
   /* Returns a random node without any goal bias. */
   NodePtr CreateRandomNode(){
     vector<dReal> randomConfig(_activeLowerLimits.size());
