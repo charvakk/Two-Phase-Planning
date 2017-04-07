@@ -31,7 +31,7 @@ private:
   NodePtr m_pparentNode;
 
   /* Costs for A* variants. f = g + h */
-  float m_ffCost, m_fgCost, m_fhCost;
+  float m_ffCost=99, m_fgCost=99, m_fhCost=99;
 
 public:
 
@@ -53,7 +53,7 @@ public:
 
   bool operator ==(Node& other);
 
-  bool operator !=(Node& other);
+  // bool operator !=(Node& other);
 
   float getFCost() const;
 

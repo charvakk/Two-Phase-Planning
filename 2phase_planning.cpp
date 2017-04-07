@@ -4,6 +4,19 @@
  *  Created on: Mar 28, 2017
  *      Author: Charvak Kondapalli || Aditya Gupta
  */
+#include <openrave/openrave.h>
+#include <openrave/plugin.h>
+#include <openrave/planningutils.h>
+
+#include <boost/bind.hpp>
+#include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
+#include <boost/algorithm/string/split.hpp> // Include for boost::split
+
+#include <iostream>
+#include <string.h>
+#include <tuple>
+#include <ctime>
+#include <cstdio>
 
 #include "2phase_planning.h"
 #include <algorithm>
@@ -15,6 +28,10 @@
 #include <iostream>
 #include <fstream>
 
+using namespace std;
+using namespace OpenRAVE;
+
+
 #define COMPUTATION_TIME 35000
 #define STEP_SIZE 0.4
 dReal GOAL_BIAS = 31;
@@ -22,15 +39,17 @@ dReal GOAL_BIAS = 31;
 #define CLOSE_ENOUGH 0.2
 #define SMOOTHING_ITERATIONS 200
 
-/***************A STAR DEFINES*************************************/
-#define STEP_COST 0.05 // used for gCost || in A-STAR
-#define STEP_SIZE_ASTAR 0.1
+/***************ARA STAR DEFINES*************************************/
+#define STEP_COST 0.1 // used for gCost || in A-STAR
+#define STEP_SIZE_ASTAR 0.5
+#define _EPSILON_ 1;
 
 typedef boost::shared_ptr<Node> NodePtr;
 typedef boost::shared_ptr<NodeTree> TreePtr;
 
 /* Node method implementations.*/
 int Node::sm_nodeCounter = 0;
+
 
 Node::Node(vector<dReal> configuration, NodePtr parent):
 m_ffCost(0),
@@ -73,16 +92,22 @@ void Node::setParentNode(const NodePtr parentNode){
 }
 
 bool Node::operator ==(Node& other){
+  dReal sum=0;
   for(size_t i = 0; i < m_vdconfiguration.size(); ++i){
-    if(m_vdconfiguration[i] != other.getConfiguration()[i])
-      return false;
+    // if(m_vdconfiguration[i] != other.getConfiguration()[i])
+      // return false;
+    sum = sum + m_vdconfiguration[i] - other.getConfiguration()[i];
   }
-  return true;
+  if(sum < 0.06)
+    return true;
+  else
+    return false;
+  // return true;
 }
 
-bool Node::operator !=(Node& other){
-  return !this->operator ==(other);
-}
+// bool Node::operator !=(Node& other){
+//   return !this->operator ==(other);
+// }
 
 //CHANGED this 
 float Node::getFCost() const{
@@ -170,250 +195,312 @@ class rrt_module : public ModuleBase {
 public:
   rrt_module(EnvironmentBasePtr penv, std::istream& ss) : ModuleBase(penv) {
     _penv = penv;
-    __description = "Implementation of RRT-Connect for RBE 550.";
-    // RegisterCommand("birrt",boost::bind(&rrt_module::BiRRT,this,_1,_2),
-    //                 "Plans and executes path to given goal configuration using Bidirectional RRTs.");
-//    RegisterCommand("rrtconnect",boost::bind(&rrt_module::RRTConnect,this,_1,_2),
-//                    "Plans and executes path to given goal configuration using RRTConnect.");
-    RegisterCommand("arastar",boost::bind(&rrt_module::ARAStar,this,_1,_2),
+    
+    RegisterCommand("MyCommand",boost::bind(&rrt_module::MyCommand,this,_1,_2),
                     "ASTAR Implimentation.");
-    // RegisterCommand("setbias",boost::bind(&rrt_module::SetBias,this,_1,_2),
-    //                 "Sets the goal bias for planning with the RRT-Connect.");
+  
   }
   virtual ~rrt_module() {}
 
-  bool SetBias(ostream& sout, istream& sin){
-    vector<dReal> in = GetInputAsVector(sout, sin);
-    GOAL_BIAS = in[0];
-    cout << GOAL_BIAS << endl;
-    return true;
-  }
-
-  /*-----------------------------------------------------------------------------Bi-Directional RRT----------------------------------------------------------------*/
-
-  bool BiRRT(ostream& sout, istream& sin){
-
-    // Initialize private members from the input
-    Init(sout, sin);
-
-    // Initialize two trees with the start and goal nodes at the respective roots.
-    TreePtr treeA(new NodeTree());
-    treeA->addNode(_startNode);
-
-    TreePtr treeB(new NodeTree());
-    treeB->addNode(_goalNode);
-
-    for(int k = 0; k < COMPUTATION_TIME; ++k){
-      NodePtr randomNode = CreateRandomNode();
-
-      if(Extend(treeA, randomNode) != "Trapped"){
-        if(Connect(treeB, treeA->getMostRecentNode()) == "Reached"){
-          treeA->getAllNodes().pop_back();
-          vector<NodePtr> pathA = treeA->getPathTo(treeA->getMostRecentNode()->getId());
-          vector<NodePtr> pathB = treeB->getPathTo(treeB->getMostRecentNode()->getId());
-          vector<NodePtr> fullPath;
-
-          std::reverse(pathA.begin(), pathA.end());
-          fullPath.reserve(pathA.size() + pathB.size()); // preallocate memory
-          fullPath.insert(fullPath.end(), pathA.begin(), pathA.end()); //TODO check if this can be done with end, begin to avoid reversing
-          fullPath.insert(fullPath.end(), pathB.begin(), pathB.end());
-
-          vector< vector<dReal> > configPath;
-          configPath.reserve(fullPath.size());
-          for(NodePtr pnode : fullPath)
-            configPath.push_back(pnode->getConfiguration());
-
-          cout << "Found a path!!!" << endl;
-          cout << "Executing the path." << endl;
-
-          cout << "Number of nodes explored: " << treeA->getSize() + treeB->getSize() << endl;
-          cout << "Path length :" << configPath.size() << endl;
-
-          endTime = clock();
-
-          DrawPath(configPath, red);
-
-          ShortcutSmoothing(fullPath);
-
-          vector< vector<dReal> > configPath2;
-          configPath2.reserve(fullPath.size());
-          for(NodePtr pnode : fullPath)
-            configPath2.push_back(pnode->getConfiguration());
-
-          cout << "Smoothed path length :" << configPath2.size() << endl;
-
-          clock_t endAfterSmoothing = clock();
-          DrawPath(configPath2, blue);
-
-          double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
-          double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
-
-  //          WriteBiStuffToFile(timeForAlgorithm, timeForSmoothing, (treeA->getSize()+treeB->getSize()), configPath.size());
-  //
-          cout << "Time for computing the path: " << timeForAlgorithm << endl;
-          cout << "Time for smoothing the path: " << timeForSmoothing << endl;
-          ExecuteTrajectory(configPath2);
-          return true;
-        }
-      }
-      swap(treeA, treeB);
-      if(k % 5000 == 0)
-        cout << k << ". Searching..." << endl;
-    }
-    cout << "Time up :(" << endl;
-    return false;
-  }
-
-  /*-----------------------------------------------------------------------------Bi-Directional RRT----------------------------------------------------------------*/
-
-
-
   /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
+  bool MyCommand(ostream& sout, istream& sin){
 
-  // bool AStar(ostream& sout, istream& sin){
-
-  //   InitAStar(sout, sin);
-  //   //we have start node in _openSet
-    
-  //   //initialise g, h
-  //   _startNode->setHCost(calculate_H(_startNode->getConfiguration(), _goalNode->getConfiguration()));
-  //   _startNode->setGCost(0);
-
-  //   _currentNode = _startNode;
-
-  //   //open set already has start node from InitAStar
-
-  //   while(_openSet.size() != 0){
-
-  //     //also checks if goal is reached or not
-  //     _currentNode = getNearestNode();
-  //     getValidNeibhour(_currentNode);
-  //     removeNode(_currentNode);
-  //     _closedSet.push_back(_currentNode);
-
-  //     for(size_t i=0 ; i < _neibhourConfig.size() ; i++){
-        
-  //       float tempCost = STEP_COST + _currentNode->getGCost();
-
-  //       if(checkPass(tempCost, _neibhourConfig[i])){
-  //         //add in openSet
-  //         boost::shared_ptr<Node> newNode = new Node(_neibhourConfig[i], _currentNode);
-  //         newNode->setGCost(tempCost);
-  //         newNode->setHCost(calculate_H(_neibhourConfig[i], _goalConfig));
-  //         _openSet.push_back(newNode);
-  //       }
-  //     }
-  //   }
-  // }
-
-  /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
-  bool ARAStar(ostream& sout, istream& sin){
-
-   //Get initial and final configration 
+   cout << " ASTAR ARA Started ...." <<  endl;
    InitAStar(sout, sin);
 
-   //Get start node cost values
+   printConfig("start",_startConfig);
+   printConfig("goal",_goalConfig);
    _startNode->setHCost(calculate_H(_startNode->getConfiguration(), _goalNode->getConfiguration()));
    _startNode->setGCost(0);
    _currentNode = _startNode;
-
-   //open set already has start node from InitAStar
+   int count = 0;
+   float tempCost1=0;
+   // printConfig(_currentNode);
+   // //open set already has start node from InitAStar
    while(_openSet.size() != 0){
-
+   // while(count < 1000){
+    count++;
+    
+    // test(count);
      //also checks if goal is reached or not
+     cout << "------------------------>" <<  count  << "<------------------------"<< endl;
      _currentNode = getNearestNode();
+     // printConfig("NearestNode :: ",_currentNode->getConfiguration());
+
+     if(_currentNode == nullptr){
+      cout << "goal reached" << endl;
+      break;
+     }
+
+     // cout << "Test" << endl;
+     //_robot->SetActiveDOFValues(_goalConfig);
+     // cout << "Test2" << endl;
+     // test(1);
      getValidNeibhour(_currentNode);
+     // test(2);
+     tempCost1 = _currentNode->getGCost() + tempCost1;
+     // printConfig("")
+     // cout << "Current G Cost --> " << _currentNode->getGCost() << endl;
+     // test(3);
+     // cout << "tempCost1 "  << tempCost1 << endl;
+     // test(1);
+     // cout <<"-----------------------------NEIBHOURS------------------------------" << endl; 
+     // for(size_t i=0 ; i<_neibhourConfig.size() ; i++){
+      // cout <<  " i_"<< i<< " ::: "<< _neibhourConfig[i][0] <<  "  "<< _neibhourConfig[i][1] <<"  "<< _neibhourConfig[i][2] << endl;//<< "  "<<_neibhourConfig[i][3] << endl;
+      // }
      removeNode(_currentNode);
+     // printConfig("next_config",_currentNode->getConfiguration()) ;
+     // cout << "_currentNode->getFCost() : "<< _currentNode->getFCost() <<  endl;
+
+     // _currentNode->setHCost(calculate_H(_currentNode->getConfiguration(),_goalConfig));
+
+     if( 0.2 > _currentNode->getHCost() ){
+      cout << "goal reached" << endl;
+      break;
+     }
+     
+     // test(2);
+     // cout <<  _closedSet.size() << endl;
      _closedSet.push_back(_currentNode);
+     // cout <<  _closedSet.size() << endl;
+     // cout <<"-----------------------------CLOSED------------------------------" << endl; 
+     // for(size_t i=0 ; i<_closedSet.size() ; i++){
+      // cout <<  " i_"<< i << "    ::: "<< _closedSet[i]->getConfiguration()[0] <<  "  "<< _closedSet[i]->getConfiguration()[1] <<"  "<< _closedSet[i]->getConfiguration()[2] << endl;
+      // }
+     // test(3);
+     // cout << _neibhourConfig.size() << endl;
 
-      for(size_t i=0 ; i < _neibhourConfig.size() ; i++){
+      for(size_t i=0 ; i <  _neibhourConfig.size() ; i++){
 
-        float tempCost = STEP_COST + _currentNode->getGCost();
-        if(checkPass(tempCost, _neibhourConfig[i])){
+
+        float tempCost = _neibhourConfig[i][3] + tempCost1;
+        // cout  << " tempCost->" << tempCost <<endl;
+
+        if(checkPass(tempCost, _neibhourConfig[i]) == 2){
+          // cout << "oooo i->" << i << " size->"<<_neibhourConfig.size()<< " tempCost->" << tempCost <<endl;
            //add in openSet
-           boost::shared_ptr<Node> newNode = new Node(_neibhourConfig[i], _currentNode);
+           boost::shared_ptr<Node> newNode(new Node(_neibhourConfig[i], _currentNode));// = new Node(_neibhourConfig[i], _currentNode);
+           
            newNode->setGCost(tempCost);
            newNode->setHCost(calculate_H(_neibhourConfig[i], _goalConfig));
            _openSet.push_back(newNode);
+
         }
+        // if(checkPass(tempCost, _neibhourConfig[i]) == 1){
+          //previous node only
+
+        // }// }else{
+        //   continue;
+        // }
       }
     } 
+
+    return true;
   }
   /* ........astar functions............................................... */
+  void test(int a){
+    cout << "test :" << a << endl;
+  }
+  //print function
+  void printConfig(string s,vector<dReal> a){
+    cout << s <<" : ";
+    for(size_t i=0 ; i<a.size()-1 ; i++){
+      cout<<" " << a[i] << " . ";
+    }cout <<endl;
+  }
 
   //eucleadean hueristic
   float calculate_H(vector<dReal> a, vector<dReal> b){
     float hValue;
-    for(size_t i=0 ; i< a.size() ; i++){
+    for(size_t i=0 ; i< a.size()-1 ; i++){
       hValue += pow((a[i] - b[i]), 2);
     }
-    hValue = sqrt(hValue);
+    hValue = sqrt(hValue) * _EPSILON_;
     return hValue;
   }
 
   //get next node from oenSet
   NodePtr getNearestNode(){
-    //get least value in _openSet
-    vector<NodePtr>::iterator min_node = min_element(_openSet.begin(), _openSet.end(), compare_f);
-    
-    //check if goal state is reached
-    //TODO check if this is correct return for iterator
-    if(*min_node == _goalNode)
+    vector<NodePtr>::iterator it = _openSet.begin();//min_element(_openSet.begin(), _openSet.end(), compare_f);
+    vector<NodePtr>::iterator it1 = _openSet.begin();;
+    float tempF=99,min=10000;
+    NodePtr temp;
+    int index;
+    while(it != _openSet.end()){
+      // min = 99;
+      tempF = (*it)->getFCost();
+      // for(size_t i=0 ; i<_neibhourConfig.size() ; i++){
+      // cout <<  " i " <<distance(_openSet.begin(), it)<< " : "<< (*it)->getConfiguration()[0] <<  "  "<< (*it)->getConfiguration()[1] <<"  "<< (*it)->getConfiguration()[2] << " === "<< tempF << endl;//<< endl;
+      // }cd
+      // cout 
+    // }
+
+      if(tempF < min){
+
+        index = distance(_openSet.begin(), it);
+        // cout << "min " <<min <<" tempF " <<tempF <<" hi..." << index <<  endl;
+        temp = (*it);
+        min = tempF;
+      }
+      
+      ++it;
+    }
+    // cout << "index...." << index << "||  min ...."  << min << endl;
+    //check if its GOAL or not
+    // cout << "Nearest Config : :: " ;
+    printConfig("Nearest Config",temp->getConfiguration());
+    // cout << "Goal Config :::" ;
+    // printConfig(_goalNode->getConfiguration());
+    dReal test=0;
+
+    for(size_t ii=0; ii<_goalConfig.size()-1 ; ii++){
+      test = test + abs(temp->getConfiguration()[ii] -_goalConfig[ii]);
+    }
+    // cout <<  "Distance from Goal :"<< test << endl;
+
+    if(test < 0.001)//temp->getConfiguration() ==_goalNode->getConfiguration())
+    {  
+      cout << "GOAL FOUND..." << endl;
       return nullptr;
-    else
-      return (*min_node); 
+    }else{
+      // cout << "." << endl;
+      return (temp); 
+
+    }
   }
 
-  bool compare_f(const NodePtr lhs, const NodePtr rhs)
-  { return lhs->getFCost() < rhs->getFCost(); }
+
+  // bool compare_f()
+  // { return lhs->getFCost() < rhs->getFCost(); }
 
   //get the valid neibhour
   void getValidNeibhour(NodePtr a){
-    
-    vector<dReal> temp = a->getConfiguration();
 
-    float move[3]=[-STEP_SIZE_ASTAR,0,STEP_SIZE_ASTAR];
-    for(float i = 0; i < 3 ; i ++){
-      for(float j = 0; j < 3 ; j ++){
-        for(float k = 0; k < 3 ; k ++){
+    // cout << "1Get Valid Neibhour ....." << endl;
+    NodePtr temp;
+
+    vector<dReal> tempConfig;
+    int num=0;
+    _neibhourConfig.clear();
+    // cout << "3Get Valid Neibhour ....." << endl;
+    float move[3]={-STEP_SIZE_ASTAR,0,STEP_SIZE_ASTAR};
+    for(int i = 0; i < 3 ; i ++){
+
+      for(int j = 0; j < 3 ; j ++){
+        for(int k = 0; k < 3 ; k ++){
+              // cout << i <<"....." << j << "....." << k << endl;    
               //remove [0, 0 , 0] config
+              
               if(i*j*k != 1){
-                temp = a->getConfiguration();          
-                temp[0] = temp[0] + move[i];
-                temp[1] = temp[1] + move[j];
-                temp[2] = temp[2] + move[k]; 
-                //check if its valid
-                if(checkValid(temp))
-                  _neibhourConfig.push_back(temp);
+                num++;
+
+                tempConfig.clear();
+                tempConfig.push_back(a->getConfiguration()[0] + move[i]);
+                tempConfig.push_back(a->getConfiguration()[1] + move[j]);
+                tempConfig.push_back(a->getConfiguration()[2] + move[k]);
+                float tempval=0;
+                tempval = (abs(move[i]) + abs(move[j]) + abs(move[k]));
+                tempConfig.push_back(tempval);
+
+                if(!checkValid(tempConfig, tempval)){
+                  _neibhourConfig.push_back(tempConfig);
+
+                }
+
               }
         }  
       }  
     }
    }
 
-   bool checkValid(vector<dReal> a){
-     _robot->SetActiveDOFValues(a);
-     bool flag = _penv->CheckCollision(_robot);
+   bool checkValid(vector<dReal> tempConfig, float ass){
 
-    return flag;
+    // printConfig("checkValid",a);
+    
+     _robot->SetActiveDOFValues(tempConfig);
+     bool flag = _penv->CheckCollision(_robot);
+     _robot->SetActiveDOFValues(_startConfig);
+    
+    //check if this config is present
+     for(size_t i=0 ; i<_openSet.size() ; i++){
+        vector<dReal> temp = _openSet[i]->getConfiguration();
+        int count1 = 0;
+        for(size_t j=0 ;j<3 ; j++){
+          if(temp[j] == tempConfig[j])
+            count1++;
+
+        }
+        if(count1 == 3){
+          // printConfig("_openSet[i]->getConfiguration()  ",_openSet[i]->getConfiguration()) ;
+          // printConfig("  tempConfig ",tempConfig);// tempConfig << endl;
+
+          float tt =  _openSet[i]->getGCost() + ass;
+          _openSet[i]->setGCost(tt);
+          flag = true;
+        }
+     }
+
+     return (flag);
    } 
 
    //remove current node from openSet
    void removeNode(NodePtr a){
-      _openSet.erase(emove(_openSet.begin(), _openSet.end(), a), _openSet.end());
+      _openSet.erase(remove(_openSet.begin(), _openSet.end(), a), _openSet.end());
   }
 
-  bool checkPass(float a, vector<dReal> b){
-      bool flag = true;
-      for(size_t i=0 ; i<_closedSet.size() ; i++){
-      if(_closedSet[i]->getConfiguration() == b){
-        if(a < _closedSet[i]->getGCost())
-          flag = true;
-        else
-          flag = false
+  int checkPass(float a, vector<dReal> b){
+
+    int flag = 1;
+    int flag1 = 1;
+    int result;
+
+    for(size_t i=0 ; i<_closedSet.size() ; i++){
+
+      flag1 = 1;
+      
+      // printConfig("b->",_closedSet[i]);
+
+      for(size_t j=0; j < b.size()-1; j++){
+        
+        if(b[j] != _closedSet[i]->getConfiguration()[j])
+          flag1 = 0;
+
       }
-      }
-      return flag;
+
+      // cout << "-";
+      if(flag1){
+        // cout << 'h' << endl;
+        // printConfig("_closedSet",_closedSet[i]->getConfiguration());
+        // printConfig("a->",b); 
+        if(a < _closedSet[i]->getGCost()){
+
+           // void removeNode(NodePtr a){
+              // _closedSet.erase(remove(_closedSet.begin(), _closedSet.end(), a), _openSet.end());
+           // }
+          
+          // _closedSet.erase(_closedSet.begin() + i);
+          _closedSet[i]->setGCost(a);
+          result = 1;
+          
+        }else{
+
+          result = 0;
+
+        }
+      
+      }else{
+      
+          result = 2;
+        }
+    } 
+    // cout << endl;
+    // bool final;
+    // if(flag)
+    //   final = true;
+    // else
+    //   final = false;
+
+      return result;
   }
 
   /* ........................................................................... */
@@ -449,24 +536,31 @@ public:
   }
 
   void InitAStar(ostream& so, istream& si){
-    // Get robot
+    _penv->GetRobots(_robots);
+    _robot = _robots.at(0);
+    // cout << "Inside Astar Initialiser.." << endl;
+    //srand(time(NULL));
+    // _robot->GetActiveDOFValues(_startConfig);
+    _startConfig.push_back(0);
+    _startConfig.push_back(0);
+    _startConfig.push_back(5);
+    _startConfig.push_back(0);
 
-    // Get active DOF values
+    // cout << "1Inside Astar Initialiser.." << endl;
 
-    // Parse goal config - might need to change INPUT_SIZE
     _goalConfig = GetInputAsVector(so, si);
+    // cout << "2Inside Astar Initialiser.." << endl;
 
-    // Get DOF limits
-
-    // Get Ranges
-
-    // Set DOF weights?
-
-    // Initialize start and goal nodes
+   // Initialize start and goal nodes
     _startNode = NodePtr(new Node(_startConfig, nullptr));
+    // cout << "3Inside Astar Initialiser.." << endl;
+
     _goalNode = NodePtr(new Node(_goalConfig, nullptr));
+    // cout << "4Inside Astar Initialiser.." << endl;
 
     _openSet.push_back(_startNode);
+    // cout << "5Inside Astar Initialiser.." << endl;
+
   }
 
   /* Returns a random node without any goal bias. */
