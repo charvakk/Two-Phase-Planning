@@ -17,8 +17,6 @@
 #include <set>
 
 #define COMPUTATION_TIME 35000
-#define STEP_SIZE 0.4
-dReal GOAL_BIAS = 31;
 #define INPUT_SIZE 52
 #define CLOSE_ENOUGH 0.2
 #define SMOOTHING_ITERATIONS 200
@@ -163,24 +161,48 @@ size_t NodeTree::getSize(){
 
 class rrt_module : public ModuleBase {
 public:
-  rrt_module(EnvironmentBasePtr penv, std::istream& ss) : ModuleBase(penv) {
+  rrt_module(EnvironmentBasePtr penv, std::istream& ss) : ModuleBase(penv),
+  STEP_SIZE(0.4),
+  GOAL_BIAS(31)
+  {
     _penv = penv;
     __description = "Implementation of RRT-Connect for RBE 550.";
     RegisterCommand("birrt",boost::bind(&rrt_module::BiRRT,this,_1,_2),
                     "Plans and executes path to given goal configuration using Bidirectional RRTs.");
-//    RegisterCommand("rrtconnect",boost::bind(&rrt_module::RRTConnect,this,_1,_2),
-//                    "Plans and executes path to given goal configuration using RRTConnect.");
+    RegisterCommand("rrtconnect",boost::bind(&rrt_module::RRTConnect,this,_1,_2),
+                    "Plans and executes path to given goal configuration using RRTConnect.");
+    RegisterCommand("astar",boost::bind(&rrt_module::AStar,this,_1,_2),
+                    "Plans and executes path to given goal configuration using AStar.");
     RegisterCommand("setbias",boost::bind(&rrt_module::SetBias,this,_1,_2),
-                    "Sets the goal bias for planning with the RRT-Connect.");
+                    "Sets the goal bias for planning with the RRT-Connect. Default: 31");
     RegisterCommand("test",boost::bind(&rrt_module::Test,this,_1,_2),
                         "Test");
+    RegisterCommand("set_step_size",boost::bind(&rrt_module::SetStepSize,this,_1,_2),
+                        "Sets the Step Size for planning with the AStar variants. Default: 0.4");
   }
   virtual ~rrt_module() {}
 
   bool SetBias(ostream& sout, istream& sin){
     vector<dReal> in = GetInputAsVector(sout, sin);
-    GOAL_BIAS = in[0];
-    cout << GOAL_BIAS << endl;
+    try{
+      GOAL_BIAS = in[0];
+    }catch(exception &e){
+      cout << e.what() << endl;
+      return false;
+    }
+    cout << "Goal bias set to " << GOAL_BIAS << endl;
+    return true;
+  }
+
+  bool SetStepSize(ostream& sout, istream& sin){
+    vector<dReal> in = GetInputAsVector(sout, sin);
+    try{
+    STEP_SIZE = in[0];
+    }catch(exception &e){
+      cout << e.what() << endl;
+      return false;
+    }
+    cout << "Step size set to " << STEP_SIZE << endl;
     return true;
   }
 
@@ -351,7 +373,7 @@ public:
       else{
         if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
           status = "Found";
-
+          _goalNode->setParentNode(currentNode);
           vector<NodePtr> path = GetAStarPath();
 
           vector< vector<dReal> > configPath;
@@ -368,7 +390,7 @@ public:
           cout << "Path length: " << configPath.size() << endl;
 
           endTime = clock();
-          DrawPath(configPath, red);
+          DrawPath(configPath);
 
           double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
 
@@ -377,7 +399,7 @@ public:
           //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
 
           ExecuteTrajectory(configPath);
-
+          cout << "Path found!" << endl;
           return true;
         }
 
@@ -411,7 +433,7 @@ public:
         _closedSet.push_back(currentNode);
       }
     }
-
+    cout << "Path doesn't exist." << endl;
     return false;
   }
 
@@ -520,6 +542,7 @@ public:
     _goalNode = NodePtr(new Node(_goalConfig, nullptr));
 
     _openSet.insert(_startNode);
+    startTime = clock();
   }
   /* Returns a random node without any goal bias. */
   NodePtr CreateRandomNode(){
@@ -837,6 +860,7 @@ public:
       final = final->getParentNode();
       path.push_back(final);
     }
+    cout << "Path length" << path.size() << endl;
     return path;
   }
 
@@ -864,6 +888,19 @@ public:
     }
   }
 
+  /* Draws a path of configurations. */
+  void DrawPath(vector< vector<dReal> >& path){
+    vector<float> raveColor = {1, 0, 0, 1};
+
+    for(vector<dReal> config : path){
+      vector<float> point;
+      point.push_back(config[0]);
+      point.push_back(config[1]);
+      point.push_back(config[2]);
+      _handles.push_back(_penv->plot3(&point[0], 1, 1, 3, &raveColor[0], 0, true));
+    }
+  }
+
   /* Draws a single point at the node. For AStar. */
   void DrawPoint(NodePtr node){
     vector<float> raveColor = {0, 0, 1, 1};
@@ -872,7 +909,7 @@ public:
     vector<dReal> config = node->getConfiguration();
     for(size_t i = 0; i < 3; ++i)
       point.push_back(config.at(i));
-    _handles.push_back(_penv->plot3(&point[0], 1, 1, 6, &raveColor[0], 0, true));
+    _handles.push_back(_penv->plot3(&point[0], 1, 1, 3.1, &raveColor[0], 0, true));
   }
 
   /* Methods for writing data to files. Can be generalized. */
@@ -906,7 +943,6 @@ public:
         file << std::fixed << std::setprecision(2) << algo+smoothing << "," << nodes << "," << unsmoothed << "\n";
       }
 
-
 private:
   EnvironmentBasePtr _penv;
   vector<dReal> _startConfig;
@@ -933,7 +969,8 @@ private:
 
   multiset<NodePtr, NodePriority> _openSet;
   vector<NodePtr> _closedSet;
-
+  dReal STEP_SIZE;
+  dReal GOAL_BIAS;
   };
 
 
