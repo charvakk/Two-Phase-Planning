@@ -14,10 +14,9 @@
 #include <ctime>
 #include <iostream>
 #include <fstream>
+#include <set>
 
 #define COMPUTATION_TIME 35000
-#define STEP_SIZE 0.4
-dReal GOAL_BIAS = 31;
 #define INPUT_SIZE 52
 #define CLOSE_ENOUGH 0.2
 #define SMOOTHING_ITERATIONS 200
@@ -29,21 +28,21 @@ typedef boost::shared_ptr<NodeTree> TreePtr;
 int Node::sm_nodeCounter = 0;
 
 Node::Node(vector<dReal> configuration, NodePtr parent):
+m_vdconfiguration(configuration),
 m_ffCost(0),
 m_fgCost(0),
 m_fhCost(0),
-m_pparentNode(parent),
-m_vdconfiguration(configuration)
+m_pparentNode(parent)
 {
 m_iid = ++sm_nodeCounter;
 }
 
 Node::Node():
+m_vdconfiguration(),
 m_ffCost(0),
 m_fgCost(0),
 m_fhCost(0),
-m_pparentNode(nullptr),
-m_vdconfiguration()
+m_pparentNode(nullptr)
 {
 m_iid = ++sm_nodeCounter;
 }
@@ -162,22 +161,48 @@ size_t NodeTree::getSize(){
 
 class rrt_module : public ModuleBase {
 public:
-  rrt_module(EnvironmentBasePtr penv, std::istream& ss) : ModuleBase(penv) {
+  rrt_module(EnvironmentBasePtr penv, std::istream& ss) : ModuleBase(penv),
+  STEP_SIZE(0.4),
+  GOAL_BIAS(31)
+  {
     _penv = penv;
     __description = "Implementation of RRT-Connect for RBE 550.";
     RegisterCommand("birrt",boost::bind(&rrt_module::BiRRT,this,_1,_2),
                     "Plans and executes path to given goal configuration using Bidirectional RRTs.");
-//    RegisterCommand("rrtconnect",boost::bind(&rrt_module::RRTConnect,this,_1,_2),
-//                    "Plans and executes path to given goal configuration using RRTConnect.");
+    RegisterCommand("rrtconnect",boost::bind(&rrt_module::RRTConnect,this,_1,_2),
+                    "Plans and executes path to given goal configuration using RRTConnect.");
+    RegisterCommand("astar",boost::bind(&rrt_module::AStar,this,_1,_2),
+                    "Plans and executes path to given goal configuration using AStar.");
     RegisterCommand("setbias",boost::bind(&rrt_module::SetBias,this,_1,_2),
-                    "Sets the goal bias for planning with the RRT-Connect.");
+                    "Sets the goal bias for planning with the RRT-Connect. Default: 31");
+    RegisterCommand("test",boost::bind(&rrt_module::Test,this,_1,_2),
+                        "Test");
+    RegisterCommand("set_step_size",boost::bind(&rrt_module::SetStepSize,this,_1,_2),
+                        "Sets the Step Size for planning with the AStar variants. Default: 0.4");
   }
   virtual ~rrt_module() {}
 
   bool SetBias(ostream& sout, istream& sin){
     vector<dReal> in = GetInputAsVector(sout, sin);
-    GOAL_BIAS = in[0];
-    cout << GOAL_BIAS << endl;
+    try{
+      GOAL_BIAS = in[0];
+    }catch(exception &e){
+      cout << e.what() << endl;
+      return false;
+    }
+    cout << "Goal bias set to " << GOAL_BIAS << endl;
+    return true;
+  }
+
+  bool SetStepSize(ostream& sout, istream& sin){
+    vector<dReal> in = GetInputAsVector(sout, sin);
+    try{
+    STEP_SIZE = in[0];
+    }catch(exception &e){
+      cout << e.what() << endl;
+      return false;
+    }
+    cout << "Step size set to " << STEP_SIZE << endl;
     return true;
   }
 
@@ -259,22 +284,212 @@ public:
   /*-----------------------------------------------------------------------------Bi-Directional RRT----------------------------------------------------------------*/
 
 
+  /*--------------------------------------------------------------------------------RRT-Connect--------------------------------------------------------------------*/
+
+  bool RRTConnect(ostream& sout, istream& sin){
+    // Initialize private members from the input
+    Init(sout, sin);
+
+    // Initialize the tree with the start node at the root.
+    TreePtr tree(new NodeTree());
+    tree->addNode(_startNode);
+
+    for(int k = 0; k < COMPUTATION_TIME; ++k){
+      NodePtr randomNode = CreateRandomNodeWithBias();
+
+      string status = Connect(tree, randomNode);
+      if(status == "GoalReached"){
+        vector<NodePtr> path = tree->getPathTo(_goalNode->getId());
+
+        vector< vector<dReal> > configPath;
+        configPath.reserve(path.size());
+        for(NodePtr pnode : path)
+          configPath.push_back(pnode->getConfiguration());
+
+
+        cout << "Found a path!!!" << endl;
+        cout << "Executing the path." << endl;
+
+        cout << "Number of nodes explored :" << endl;
+        cout << tree->getSize() << endl;
+
+        cout << "Path length: " << configPath.size() << endl;
+
+        endTime = clock();
+
+        DrawPath(configPath, red);
+
+        ShortcutSmoothing(path);
+
+        vector< vector<dReal> > configPath2;
+        configPath2.reserve(path.size());
+        for(NodePtr pnode : path)
+          configPath2.push_back(pnode->getConfiguration());
+
+        cout << "Smoothed path length :" << configPath2.size() << endl;
+
+        clock_t endAfterSmoothing = clock();
+
+        DrawPath(configPath2, blue);
+
+        double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+        double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
+
+
+        cout << "Time for computing the path: " << timeForAlgorithm << endl;
+        cout << "Time for smooothing the path: " << timeForSmoothing << endl;
+
+        //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
+
+        ExecuteTrajectory(configPath2);
+        return true;
+      }
+      if(k % 5000 == 0)
+        cout << k << ". Searching..." << endl;
+    }
+    cout << "Time up :(" << endl;
+    return false;
+  }
+
+  /*--------------------------------------------------------------------------------RRT-Connect--------------------------------------------------------------------*/
+
+
 
   /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
 
   bool AStar(ostream& sout, istream& sin){
 
     InitAStar(sout, sin);
+    string status;
 
     while(_openSet.size() != 0){
+      NodePtr currentNode = *_openSet.begin();
+      _openSet.erase(_openSet.begin());
 
+      DrawPoint(currentNode);
 
+      if(CheckCollision(currentNode))
+        continue;
+      else{
+        if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
+          status = "Found";
+          _goalNode->setParentNode(currentNode);
+          vector<NodePtr> path = GetAStarPath();
+
+          vector< vector<dReal> > configPath;
+          configPath.reserve(path.size());
+          for(NodePtr pnode : path)
+            configPath.push_back(pnode->getConfiguration());
+
+          cout << "Found a path!!!" << endl;
+          cout << "Executing the path." << endl;
+
+          //        cout << "Number of nodes explored :" << endl;
+          //        cout << tree->getSize() << endl;
+
+          cout << "Path length: " << configPath.size() << endl;
+
+          endTime = clock();
+          DrawPath(configPath);
+
+          double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+
+          cout << "Time for computing the path: " << timeForAlgorithm << endl;
+
+          //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
+
+          ExecuteTrajectory(configPath);
+          cout << "Path found!" << endl;
+          return true;
+        }
+
+        vector<NodePtr> neighbors = GetNeighbors(currentNode);
+        for(NodePtr neighbor : neighbors){
+          neighbor->setGCost(currentNode->getGCost() + UnweightedDistance(currentNode, neighbor));
+          neighbor->setHCost(UnweightedDistance(neighbor, _goalNode));
+          neighbor->setFCost(neighbor->getGCost() + neighbor->getHCost());
+
+          multiset<NodePtr>::iterator it1 = FindInOpenSet(neighbor);
+          if(it1 != _openSet.end()){
+            NodePtr nodeInOpenSet = *it1;
+            if(nodeInOpenSet->getFCost() < neighbor->getFCost())
+              continue;
+            else
+              _openSet.erase(it1);
+          }
+
+          vector<NodePtr>::iterator it2 = FindInClosedSet(neighbor);
+          if(it2 != _closedSet.end()){
+            NodePtr nodeInClosedSet = *it2;
+            if(nodeInClosedSet->getFCost() < neighbor->getFCost())
+              continue;
+            else
+              _closedSet.erase(it2);
+          }
+
+          _openSet.insert(neighbor);
+        }
+
+        _closedSet.push_back(currentNode);
+      }
     }
-
-
+    cout << "Path doesn't exist." << endl;
+    return false;
   }
 
   /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
+
+
+  bool Test(ostream& sout, istream& sin){
+    NodePtr node1(new Node());
+    NodePtr node2(new Node());
+    NodePtr node3(new Node());
+
+    node1->setFCost(5);
+    node1->setConfiguration(vector<dReal>{1, 1, 1});
+
+//    node2->setFCost(2);
+//    node2->setConfiguration(vector<dReal>{2, 2, 2});
+//
+//    node3->setFCost(7);
+//    node3->setConfiguration(vector<dReal>{3, 3, 3});
+//
+//    _openSet.insert(node1);
+//    _openSet.insert(node2);
+//    _openSet.insert(node3);
+
+//    for(int i = 0; i < 3; ++i){
+//      NodePtr node = *_openSet.begin();
+//      _openSet.erase(_openSet.begin());
+//      cout << node->getFCost() << endl;
+//    }
+
+//    NodePtr nodecheck(new Node(vector<dReal>{1, 1, 1}, nullptr));
+////    nodecheck->setFCost(5);
+////    auto it = _openSet.find(nodecheck);
+//    for(auto node : _openSet){
+//      if(*node == *nodecheck){
+//        cout << "found" << node->getFCost() << endl;
+//        break;
+//      }
+//    }
+//    if(it != _openSet.end()){
+//      NodePtr node = *it;
+//      cout << "found" << node->getFCost() << endl;
+//    }else
+//      cout << "not found\n";
+
+    vector<NodePtr> neighbors = GetNeighbors(node1);
+    for(auto n : neighbors){
+      for(size_t i = 0; i < n->getConfiguration().size(); ++i){
+        cout << n->getConfiguration().at(i) << " ";
+      }
+      cout << endl;
+    }
+
+    cout << "number of neighbors: " << neighbors.size() << endl;
+    return true;
+  }
 
   /* Initializes the members by calling the input parser. */
   void Init(ostream& so, istream& si){
@@ -307,15 +522,18 @@ public:
 
   void InitAStar(ostream& so, istream& si){
     // Get robot
+    _penv->GetRobots(_robots);
+    _robot = _robots.at(0);
 
     // Get active DOF values
+    _robot->GetActiveDOFValues(_startConfig);
 
     // Parse goal config - might need to change INPUT_SIZE
     _goalConfig = GetInputAsVector(so, si);
 
-    // Get DOF limits
+    // Get DOF limits?
 
-    // Get Ranges
+    // Get Ranges?
 
     // Set DOF weights?
 
@@ -323,7 +541,8 @@ public:
     _startNode = NodePtr(new Node(_startConfig, nullptr));
     _goalNode = NodePtr(new Node(_goalConfig, nullptr));
 
-    _openSet.push_back(_startNode);
+    _openSet.insert(_startNode);
+    startTime = clock();
   }
   /* Returns a random node without any goal bias. */
   NodePtr CreateRandomNode(){
@@ -426,7 +645,7 @@ public:
     return true;
   }
 
-  /*Parses the input from the python script and returns the goal config. */
+  /* Parses the input from the python script and returns the goal config. */
   vector<dReal> GetInputAsVector(ostream& sout, istream& sinput){
     char input[INPUT_SIZE];
     vector<dReal> goalConfig;
@@ -577,20 +796,75 @@ public:
     }
   }
 
-  /* Returns the node with the lowest f cost in the open set */
-  NodePtr FindLowestF(){
-    float lowest = numeric_limits<float>::max();
-    NodePtr bestNode = nullptr;
+//  /* Returns the node with the lowest f cost in the open set */
+//  NodePtr FindLowestF(){
+//    float lowest = numeric_limits<float>::max();
+//    NodePtr bestNode = nullptr;
+//
+//    for(NodePtr node : _openSet){
+//      if(node->getFCost() < lowest){
+//        lowest = node->getFCost();
+//        bestNode = node;
+//      }
+//    }
+//    return bestNode;
+//  }
 
-    for(NodePtr node : _openSet){
-      if(node->getFCost() < lowest){
-        lowest = node->getFCost();
-        bestNode = node;
-      }
+  /* Returns an iterator to the node in the open set. Returns end if not found. */
+  multiset<NodePtr>::iterator FindInOpenSet(NodePtr node){
+    multiset<NodePtr>::iterator it;
+    for(it = _openSet.begin(); it != _openSet.end(); ++it){
+      if(**it == *node)
+        return it;
     }
-    return bestNode;
+    return it;
   }
 
+  /* Returns an iterator to the node in the closed set. Returns end if not found. */
+  vector<NodePtr>::iterator FindInClosedSet(NodePtr node){
+    vector<NodePtr>::iterator it;
+    for(it = _closedSet.begin(); it != _closedSet.end(); ++it){
+      if(**it == *node)
+        return it;
+    }
+    return it;
+  }
+
+  /* Returns 8-connected neighbors to the given node, as a vector of NodePtrs. Only for 3D. */
+  vector<NodePtr> GetNeighbors(NodePtr node){
+    vector<dReal> config = node->getConfiguration();
+    vector<dReal> operations = {-STEP_SIZE, 0, STEP_SIZE};
+    vector<NodePtr> neighbors;
+
+    for(dReal o1 : operations){
+      for(dReal o2 : operations){
+        for(dReal o3 : operations){
+          if(o1 != 0 || o2 != 0 || o3 != 0){
+            vector<dReal> newConfig = {config[0] + o1, config[1] + o2, config[2] + o3};
+            NodePtr n(new Node(newConfig, node));
+            neighbors.push_back(n);
+          }
+        }
+      }
+    }
+    return neighbors;
+  }
+
+  /* Find the path from the parents. */
+  vector<NodePtr> GetAStarPath(){
+
+    vector<NodePtr> path;
+    NodePtr final = _goalNode;
+    path.push_back(final);
+    while(final->getParentNode() != nullptr){
+      final = final->getParentNode();
+      path.push_back(final);
+    }
+    cout << "Path length" << path.size() << endl;
+    return path;
+  }
+
+  /* Draws a path of configurations. */
   void DrawPath(vector< vector<dReal> >& path, string color){
     _robot->SetActiveManipulator("leftarm");
     RobotBase::ManipulatorPtr manipulator = _robot->GetActiveManipulator();
@@ -614,6 +888,31 @@ public:
     }
   }
 
+  /* Draws a path of configurations. */
+  void DrawPath(vector< vector<dReal> >& path){
+    vector<float> raveColor = {1, 0, 0, 1};
+
+    for(vector<dReal> config : path){
+      vector<float> point;
+      point.push_back(config[0]);
+      point.push_back(config[1]);
+      point.push_back(config[2]);
+      _handles.push_back(_penv->plot3(&point[0], 1, 1, 3, &raveColor[0], 0, true));
+    }
+  }
+
+  /* Draws a single point at the node. For AStar. */
+  void DrawPoint(NodePtr node){
+    vector<float> raveColor = {0, 0, 1, 1};
+    vector<float> point;
+
+    vector<dReal> config = node->getConfiguration();
+    for(size_t i = 0; i < 3; ++i)
+      point.push_back(config.at(i));
+    _handles.push_back(_penv->plot3(&point[0], 1, 1, 3.1, &raveColor[0], 0, true));
+  }
+
+  /* Methods for writing data to files. Can be generalized. */
   void WriteDurationsToFile(dReal bias, double algo, double smoothing){
     ofstream file;
     file.open("computation_times.csv", ios_base::app);
@@ -644,7 +943,6 @@ public:
         file << std::fixed << std::setprecision(2) << algo+smoothing << "," << nodes << "," << unsmoothed << "\n";
       }
 
-
 private:
   EnvironmentBasePtr _penv;
   vector<dReal> _startConfig;
@@ -663,8 +961,16 @@ private:
   clock_t startTime;
   clock_t endTime;
 
+  struct NodePriority{
+    bool operator()(const NodePtr left, const NodePtr right) const{
+      return left->getFCost() < right->getFCost();
+    }
+  };
+
+  multiset<NodePtr, NodePriority> _openSet;
   vector<NodePtr> _closedSet;
-  vector<NodePtr> _openSet;
+  dReal STEP_SIZE;
+  dReal GOAL_BIAS;
   };
 
 
