@@ -400,10 +400,13 @@ public:
 
         NodePtr tempNode = *_openSet.begin();
         dReal tempVal = currentNode->getFCost()/tempNode->getFCost();
-        cout << "tempVal : " << tempVal << endl;
+        cout << currentNode->getFCost() << endl;
+        cout << tempNode->getFCost() << endl;
+        cout << "TempVal : " << tempVal << endl;
+
 
         _epsilonDash = min(_epsilon, tempVal);
-        cout << "epsilonDash : " << _epsilonDash << endl;
+        //cout << "epsilonDash : " << _epsilonDash << endl;
 
 
 
@@ -420,8 +423,8 @@ public:
             DrawPoint(currentNode);
             count_print++;
 
-            if(count_print%100 == 0)
-                cout << currentNode->getFCost() << endl;
+            //if(count_print%100 == 0)
+            //    cout << currentNode->getFCost() << endl;
 
             if(CheckCollision(currentNode))
                 continue;
@@ -430,6 +433,7 @@ public:
                     cout << "Found: :" << count_print << " ---- " << _closedSet.size() << endl;
 
                     //    status = "Found";
+                    cout << _goalNode->getFCost() << endl;
 
                     _goalNode->setParentNode(currentNode);
                     vector<NodePtr> path = GetAStarPath();
@@ -439,23 +443,24 @@ public:
                     for(NodePtr pnode : path)
                         configPath.push_back(pnode->getConfiguration());
 
-                    cout << "Found a path!!!" << endl;
-                    cout << "Executing the path." << endl;
-                    cout << "Path length: " << configPath.size() << endl;
+                    //cout << "Found a path!!!" << endl;
+                    //cout << "Executing the path." << endl;
+                    //cout << "Path length: " << configPath.size() << endl;
 
                     endTime = clock();
                     DrawPath(configPath);
-                    pause = cin.get();
+                    //pause = cin.get();
                     //double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
 
                     //cout << "Time for computing the path: " << timeForAlgorithm << endl;
 
-                    //ExecuteTrajectory(configPath);
+                    ExecuteTrajectory(configPath);
                     //cout << "Path found!" << endl;
 
                     //double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
                     //endTime = clock();
                     //cout << "Time for computing the path: " << timeForAlgorithm << endl;
+                    pause = cin.get();
                     return;
                 }
 
@@ -538,8 +543,8 @@ cout << "lol" << endl;
     _robot->GetActiveDOFValues(_startConfig);
     _goalConfig = GetInputAsVector(so, si);
     _robot->GetActiveDOFLimits(_activeLowerLimits, _activeUpperLimits);
-    assert(_goalConfig.size() == 7 && "goalConfig should be of size 7!");
-    assert(_startConfig.size() == 7 && "startConfig wasn't size 7 :(");
+    //assert(_goalConfig.size() == 7 && "goalConfig should be of size 7!");
+    //assert(_startConfig.size() == 7 && "startConfig wasn't size 7 :(");
 
     _activeDOFRanges.reserve(_activeLowerLimits.size());
     for(size_t i = 0; i < _activeLowerLimits.size(); ++i){

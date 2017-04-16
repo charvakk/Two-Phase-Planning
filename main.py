@@ -130,7 +130,8 @@ def run():
     with env:
         goalConfig = [3,3,1]
         RRTModule.SendCommand("set_step_size 0.4")
-        sinput = 'astar ' + str(goalConfig)
+        #sinput = 'astar ' + str(goalConfig)
+        sinput = 'rrtconnect ' + str(goalConfig)
         # sinput = 'help'
         print '---------START-------------'
         # RRT
