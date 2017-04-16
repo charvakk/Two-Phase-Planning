@@ -6,9 +6,9 @@ from __future__ import with_statement  # for python 2.5
 import time
 import openravepy as rave
 import argparse
-import parser
-import bound
-import state
+from quadrotor.quadrotor_openrave import parser
+from quadrotor.quadrotor_openrave import bound
+from quadrotor.quadrotor_openrave import state
 #import navigation
 #import test
 import time
@@ -39,7 +39,7 @@ def parse_args():
 
     ap.add_argument('--verbose', action='store_true')
     ap.add_argument('--test', action='store_true')
-    ap.add_argument('--params', default='params/quadrotor.yaml')
+    ap.add_argument('--params', default='quadrotor/quadrotor_openrave/params/quadrotor.yaml')
 
     return ap.parse_args()
 
@@ -70,6 +70,9 @@ def get_bounds(robot, dof):
         elif dof == 4:
             bounds = np.array(((envmin[0], envmin[1], envmin[2], -np.pi),
                                (envmax[0], envmax[1], envmax[2], np.pi)))
+        elif dof == 3:
+        	bounds = np.array(((envmin[0], envmin[1], envmin[2]),
+                               (envmax[0], envmax[1], envmax[2])))
         else:
             raise NotImplementedError('dof == 4 || dof == 6')
 
@@ -82,6 +85,9 @@ def set_dof(robot, dof):
     elif dof == 4:
         robot.SetActiveDOFs(
             [], rave.DOFAffine.X | rave.DOFAffine.Y | rave.DOFAffine.Z | rave.DOFAffine.RotationAxis, [0, 0, 1])
+    elif dof == 3:
+    	robot.SetActiveDOFs(
+            [], rave.DOFAffine.X | rave.DOFAffine.Y | rave.DOFAffine.Z)
     else:
         raise NotImplementedError('dof == 4 || dof == 6')
 
@@ -90,7 +96,7 @@ def set_dof(robot, dof):
 
 @rave.with_destroy
 def run():
-	
+
     args = parse_args()
     params = parser.Yaml(file_name=args.params)
     env = rave.Environment()
@@ -104,33 +110,33 @@ def run():
     # 1) get the 1st robot that is inside the loaded scene
     # 2) assign it to the variable named 'robot'
     robot = env.GetRobots()[0]
-    env = robot.GetEnv()
-    
+    # env = robot.GetEnv()
+
     # using import bound to define DOF's
-    bounds = get_bounds(robot,4)
-    start = robot.GetActiveDOFValues()
-    print start
+    bounds = get_bounds(robot,3)
+    # start = robot.GetActiveDOFValues()
+    # print start
     robot_state = state.State(env, verbose=False)
-	
+
     ## INITIALIZE YOUR PLUGIN HERE ###
     RaveInitialize()
     RaveLoadPlugin('build/2phase_planning')
     RRTModule = RaveCreateModule(env, 'rrt_module')
     # END INITIALIZING YOUR PLUGIN ###
-    
-    with env:
-        goalconfig = [3,3,1,0]
-        ## YOUR CODE HERE ###
-        # robot.SetActiveDOFValues(goalconfig)
 
-        ##call your plugin to plan, draw, and execute a path from the current configuration of the left arm to the goalconfig
-        sinput = 'MyCommand ' + str(goalconfig)
+    startConfig = [0,0,5]
+    robot.SetActiveDOFValues(startConfig)
+
+    with env:
+        goalConfig = [3,3,1]
+        RRTModule.SendCommand("set_step_size 0.4")
+        sinput = 'astar ' + str(goalConfig)
         # sinput = 'help'
         print '---------START-------------'
         # RRT
         cmdout = RRTModule.SendCommand(sinput)
         print '---------FINISH------------'
-        ### END OF YOUR CODE ###    
+
     waitrobot(robot)
 
     raw_input("Press enter to exit...")

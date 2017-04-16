@@ -412,14 +412,15 @@ public:
   void ImprovePath(){
         cout << "-----------------------------------------" << _epsilon << "-----------------------------------------" << endl;
         count_print = 0;
+        //cout <<  " endl" << endl;
       while(_openSet.size() != 0){
-
+            //cout <<  " endl1" << endl;
             currentNode = *_openSet.begin();
             _openSet.erase(_openSet.begin());
 
             DrawPoint(currentNode);
             count_print++;
-
+           // cout << count_print << endl;
             if(count_print%100 == 0)
                 cout << currentNode->getFCost() << endl;
 
@@ -446,25 +447,17 @@ public:
                     endTime = clock();
                     DrawPath(configPath);
                     pause = cin.get();
-                    //double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
 
-                    //cout << "Time for computing the path: " << timeForAlgorithm << endl;
-
-                    //ExecuteTrajectory(configPath);
-                    //cout << "Path found!" << endl;
-
-                    //double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
-                    //endTime = clock();
-                    //cout << "Time for computing the path: " << timeForAlgorithm << endl;
                     return;
                 }
+                cout <<  " endl2" << endl;
 
             vector<NodePtr> neighbors = GetNeighbors(currentNode);
             for(NodePtr neighbor : neighbors){
                     neighbor->setGCost(currentNode->getGCost() + UnweightedDistance(currentNode, neighbor));
                     neighbor->setHCost(UnweightedDistance(neighbor, _goalNode));
                     neighbor->setFCost(neighbor->getGCost() + _epsilon * neighbor->getHCost());
-
+                    //cout << "Finding Neibhour" << endl;
                     multiset<NodePtr>::iterator it1 = FindInOpenSet(neighbor);
                     if(it1 != _openSet.end()){
                         NodePtr nodeInOpenSet = *it1;
@@ -493,7 +486,7 @@ public:
                             continue;
                         }
                     }
-
+                   // cout << _openSet.size() << endl;
 
                     _openSet.insert(neighbor);
             }

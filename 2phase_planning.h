@@ -53,7 +53,7 @@ public:
 
   bool operator ==(Node& other);
 
-  // bool operator !=(Node& other);
+  bool operator !=(Node& other);
 
   float getFCost() const;
 
