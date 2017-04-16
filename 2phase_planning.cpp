@@ -512,6 +512,7 @@ public:
     NodePtr node2(new Node());
     NodePtr node3(new Node());
 
+cout << "lol" << endl;
     node1->setFCost(5);
     node1->setConfiguration(vector<dReal>{1, 1, 1});
 
