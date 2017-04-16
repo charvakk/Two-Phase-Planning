@@ -96,7 +96,7 @@ def set_dof(robot, dof):
 
 @rave.with_destroy
 def run():
-	
+
     args = parse_args()
     params = parser.Yaml(file_name=args.params)
     env = rave.Environment()
@@ -111,25 +111,25 @@ def run():
     # 2) assign it to the variable named 'robot'
     robot = env.GetRobots()[0]
     # env = robot.GetEnv()
-    
+
     # using import bound to define DOF's
     bounds = get_bounds(robot,3)
     # start = robot.GetActiveDOFValues()
     # print start
     robot_state = state.State(env, verbose=False)
-	
+
     ## INITIALIZE YOUR PLUGIN HERE ###
     RaveInitialize()
     RaveLoadPlugin('build/2phase_planning')
     RRTModule = RaveCreateModule(env, 'rrt_module')
     # END INITIALIZING YOUR PLUGIN ###
-    
+
     startConfig = [0,0,5]
     robot.SetActiveDOFValues(startConfig)
 
     with env:
         goalConfig = [3,3,1]
-        RRTModule.SendCommand("set_step_size 0.3")       
+        RRTModule.SendCommand("set_step_size 0.4")
         sinput = 'astar ' + str(goalConfig)
         # sinput = 'help'
         print '---------START-------------'

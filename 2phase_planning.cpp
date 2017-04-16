@@ -15,6 +15,7 @@
 #include <iostream>
 #include <fstream>
 #include <set>
+#include <random>
 
 #define COMPUTATION_TIME 35000
 #define INPUT_SIZE 52
@@ -362,81 +363,147 @@ public:
     InitAStar(sout, sin);
     string status;
 
-    while(_openSet.size() != 0){
-      NodePtr currentNode = *_openSet.begin();
-      _openSet.erase(_openSet.begin());
+    _epsilon = 2;
+    _epsilonDash = 0;
+    _epsilonDelta = 0.2;
 
-      DrawPoint(currentNode);
+    _goalNode->setGCost(9999);
+    _goalNode->setFCost(_goalNode->getGCost());
+    _startNode->setGCost(0);
+    _startNode->setFCost(_goalNode->getGCost());
 
-      if(CheckCollision(currentNode))
-        continue;
-      else{
-        if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
-          status = "Found";
-          _goalNode->setParentNode(currentNode);
-          vector<NodePtr> path = GetAStarPath();
+    ImprovePath();
+    updateEpsilon();
 
-          vector< vector<dReal> > configPath;
-          configPath.reserve(path.size());
-          for(NodePtr pnode : path)
-            configPath.push_back(pnode->getConfiguration());
+    //pause = cin.get();
 
-          cout << "Found a path!!!" << endl;
-          cout << "Executing the path." << endl;
+    while(_epsilonDash > 1){
+        //pause = cin.get();
+        cout << "------------------------------------" << endl;
+        cout << "Epsilon " << _epsilon << endl;
+        cout << "Epsilon Dash " << _epsilonDash << endl;
+        _epsilon -= _epsilonDelta;
+        _closedSet.clear();
+        ImprovePath();
+        updateEpsilon();
 
-          //        cout << "Number of nodes explored :" << endl;
-          //        cout << tree->getSize() << endl;
-
-          cout << "Path length: " << configPath.size() << endl;
-
-          endTime = clock();
-          DrawPath(configPath);
-
-          double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
-
-          cout << "Time for computing the path: " << timeForAlgorithm << endl;
-
-          //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
-
-          ExecuteTrajectory(configPath);
-          cout << "Path found!" << endl;
-          return true;
-        }
-
-        vector<NodePtr> neighbors = GetNeighbors(currentNode);
-        for(NodePtr neighbor : neighbors){
-          neighbor->setGCost(currentNode->getGCost() + UnweightedDistance(currentNode, neighbor));
-          neighbor->setHCost(UnweightedDistance(neighbor, _goalNode));
-          neighbor->setFCost(neighbor->getGCost() + neighbor->getHCost());
-
-          multiset<NodePtr>::iterator it1 = FindInOpenSet(neighbor);
-          if(it1 != _openSet.end()){
-            NodePtr nodeInOpenSet = *it1;
-            if(nodeInOpenSet->getFCost() < neighbor->getFCost())
-              continue;
-            else
-              _openSet.erase(it1);
-          }
-
-          vector<NodePtr>::iterator it2 = FindInClosedSet(neighbor);
-          if(it2 != _closedSet.end()){
-            NodePtr nodeInClosedSet = *it2;
-            if(nodeInClosedSet->getFCost() < neighbor->getFCost())
-              continue;
-            else
-              _closedSet.erase(it2);
-          }
-
-          _openSet.insert(neighbor);
-        }
-
-        _closedSet.push_back(currentNode);
-      }
     }
-    cout << "Path doesn't exist." << endl;
-    return false;
+
+    cout << "-------------------------------------------end----------------------------------------" << endl;
+    return true;
+
   }
 
+  void updateEpsilon(){
+
+        _openSet.insert(_inconsSet.begin(), _inconsSet.end());
+
+        NodePtr tempNode = *_openSet.begin();
+        dReal tempVal = currentNode->getFCost()/tempNode->getFCost();
+        cout << "tempVal : " << tempVal << endl;
+
+        _epsilonDash = min(_epsilon, tempVal);
+        cout << "epsilonDash : " << _epsilonDash << endl;
+
+
+
+  }
+
+  void ImprovePath(){
+        cout << "-----------------------------------------" << _epsilon << "-----------------------------------------" << endl;
+        count_print = 0;
+      while(_openSet.size() != 0){
+
+            currentNode = *_openSet.begin();
+            _openSet.erase(_openSet.begin());
+
+            DrawPoint(currentNode);
+            count_print++;
+
+            if(count_print%100 == 0)
+                cout << currentNode->getFCost() << endl;
+
+            if(CheckCollision(currentNode))
+                continue;
+            else{
+                if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
+                    cout << "Found: :" << count_print << " ---- " << _closedSet.size() << endl;
+
+                    //    status = "Found";
+
+                    _goalNode->setParentNode(currentNode);
+                    vector<NodePtr> path = GetAStarPath();
+
+                    vector< vector<dReal> > configPath;
+                    configPath.reserve(path.size());
+                    for(NodePtr pnode : path)
+                        configPath.push_back(pnode->getConfiguration());
+
+                    cout << "Found a path!!!" << endl;
+                    cout << "Executing the path." << endl;
+                    cout << "Path length: " << configPath.size() << endl;
+
+                    endTime = clock();
+                    DrawPath(configPath);
+                    pause = cin.get();
+                    //double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+
+                    //cout << "Time for computing the path: " << timeForAlgorithm << endl;
+
+                    //ExecuteTrajectory(configPath);
+                    //cout << "Path found!" << endl;
+
+                    //double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+                    //endTime = clock();
+                    //cout << "Time for computing the path: " << timeForAlgorithm << endl;
+                    return;
+                }
+
+            vector<NodePtr> neighbors = GetNeighbors(currentNode);
+            for(NodePtr neighbor : neighbors){
+                    neighbor->setGCost(currentNode->getGCost() + UnweightedDistance(currentNode, neighbor));
+                    neighbor->setHCost(UnweightedDistance(neighbor, _goalNode));
+                    neighbor->setFCost(neighbor->getGCost() + _epsilon * neighbor->getHCost());
+
+                    multiset<NodePtr>::iterator it1 = FindInOpenSet(neighbor);
+                    if(it1 != _openSet.end()){
+                        NodePtr nodeInOpenSet = *it1;
+                        if(nodeInOpenSet->getFCost() < neighbor->getFCost())
+                            continue;
+                        else
+                            _openSet.erase(it1);
+                     }
+
+                    //if in closed set
+                    vector<NodePtr>::iterator it2 = FindInClosedSet(neighbor);
+                    if(it2 != _closedSet.end()){
+                        NodePtr nodeInClosedSet = *it2;
+
+                       if(nodeInClosedSet->getFCost() > neighbor->getFCost()){
+                            //_inconsSet.insert(neighbor);
+                            continue;
+                        }else{
+                            multiset<NodePtr>::iterator it3 = FindInInconSet(neighbor);
+                            if(it3 != _inconsSet.end()){
+                                _inconsSet.erase(it3);
+                                _inconsSet.insert(neighbor);
+                            }else{
+                                _inconsSet.insert(neighbor);
+                            }
+                            continue;
+                        }
+                    }
+
+
+                    _openSet.insert(neighbor);
+            }
+
+            _closedSet.push_back(currentNode);
+            }
+        }
+        cout << "Path doesn't exist." << endl;
+        return;
+  }
   /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
 
 
@@ -448,36 +515,6 @@ public:
     node1->setFCost(5);
     node1->setConfiguration(vector<dReal>{1, 1, 1});
 
-//    node2->setFCost(2);
-//    node2->setConfiguration(vector<dReal>{2, 2, 2});
-//
-//    node3->setFCost(7);
-//    node3->setConfiguration(vector<dReal>{3, 3, 3});
-//
-//    _openSet.insert(node1);
-//    _openSet.insert(node2);
-//    _openSet.insert(node3);
-
-//    for(int i = 0; i < 3; ++i){
-//      NodePtr node = *_openSet.begin();
-//      _openSet.erase(_openSet.begin());
-//      cout << node->getFCost() << endl;
-//    }
-
-//    NodePtr nodecheck(new Node(vector<dReal>{1, 1, 1}, nullptr));
-////    nodecheck->setFCost(5);
-////    auto it = _openSet.find(nodecheck);
-//    for(auto node : _openSet){
-//      if(*node == *nodecheck){
-//        cout << "found" << node->getFCost() << endl;
-//        break;
-//      }
-//    }
-//    if(it != _openSet.end()){
-//      NodePtr node = *it;
-//      cout << "found" << node->getFCost() << endl;
-//    }else
-//      cout << "not found\n";
 
     vector<NodePtr> neighbors = GetNeighbors(node1);
     for(auto n : neighbors){
@@ -575,6 +612,45 @@ public:
 
       return randomNode;
     }
+  }
+
+ NodePtr CreateNodeWithGaussianBias(){
+    /*Select random point from _closedSet and taking that pt as gaussina mean, select configration at rondom*/
+    /* TODO : change form of _closedSet as required by RRT */
+    NodePtr gaussianNode(new Node());
+    dReal N_closedSet = _closedSet.size();
+    int startIndex = 0;
+    int rrtCount = static_cast<int>(N_closedSet / _gaussianFactor);
+    while(rrtCount){
+        //select random point from list, making sure to move in forwrd direction HOW
+        int randomIndex = rand() / _gaussianFactor;
+        if(randomIndex + startIndex > N_closedSet)
+            return _goalNode;
+        gaussianNode = _closedSet.at(randomIndex + startIndex);
+        //create gaussian distribution around that point and select the configraion
+        default_random_engine generator;
+        vector<dReal> currentConfig = gaussianNode->getConfiguration();
+        vector<dReal> tempConfig;
+
+        //x
+        normal_distribution<float> distribution_x(static_cast<float>(currentConfig[0]),_gaussVar);
+        tempConfig.push_back(distribution_x(generator));
+        //y
+        normal_distribution<float> distribution_y(static_cast<float>(currentConfig[1]),_gaussVar);
+        tempConfig.push_back(distribution_y(generator));
+        //z
+        normal_distribution<float> distribution_z(static_cast<float>(currentConfig[2]),_gaussVar);
+        tempConfig.push_back(distribution_z(generator));
+
+        startIndex += _gaussianFactor;
+        rrtCount--;
+    }
+
+    if(rrtCount == 0){
+        return _goalNode;
+    }
+
+    return gaussianNode;
   }
 
   /* Returns a random number between, and including, 0 and 99.*/
@@ -796,19 +872,14 @@ public:
     }
   }
 
-//  /* Returns the node with the lowest f cost in the open set */
-//  NodePtr FindLowestF(){
-//    float lowest = numeric_limits<float>::max();
-//    NodePtr bestNode = nullptr;
-//
-//    for(NodePtr node : _openSet){
-//      if(node->getFCost() < lowest){
-//        lowest = node->getFCost();
-//        bestNode = node;
-//      }
-//    }
-//    return bestNode;
-//  }
+  multiset<NodePtr>::iterator FindInInconSet(NodePtr node){
+    multiset<NodePtr>::iterator it;
+    for(it = _inconsSet.begin(); it != _inconsSet.end(); ++it){
+      if(**it == *node)
+        return it;
+    }
+    return it;
+  }
 
   /* Returns an iterator to the node in the open set. Returns end if not found. */
   multiset<NodePtr>::iterator FindInOpenSet(NodePtr node){
@@ -858,6 +929,7 @@ public:
     path.push_back(final);
     while(final->getParentNode() != nullptr){
       final = final->getParentNode();
+      //cout << "." <<e
       path.push_back(final);
     }
     cout << "Path length" << path.size() << endl;
@@ -953,6 +1025,7 @@ private:
   RobotBasePtr _robot;
   NodePtr _startNode;
   NodePtr _goalNode;
+  NodePtr currentNode;
   vector<dReal> _activeDOFRanges;
   vector<dReal> _dofWeights;
   vector<GraphHandlePtr> _handles;
@@ -961,13 +1034,26 @@ private:
   clock_t startTime;
   clock_t endTime;
 
+  dReal _epsilon;
+  dReal _epsilonDash;
+  dReal _epsilonDelta;
+
+  dReal _gaussianFactor = 50;
+  float _gaussVar = 0.2;
+
+  int count_print = 0;
+
   struct NodePriority{
     bool operator()(const NodePtr left, const NodePtr right) const{
       return left->getFCost() < right->getFCost();
     }
   };
 
+  char pause;
+
+  multiset<NodePtr, NodePriority> _inconsSet;
   multiset<NodePtr, NodePriority> _openSet;
+  multiset<NodePtr, NodePriority> _closeSet;
   vector<NodePtr> _closedSet;
   dReal STEP_SIZE;
   dReal GOAL_BIAS;
