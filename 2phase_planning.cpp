@@ -682,84 +682,84 @@ public:
 
   /*Improve Path function for ARA | ANA takes care for inconsistent list */
   void ImprovePath(){
-      while(_openSet.size() != 0){
-            currentNode = *_openSet.begin();
-            _openSet.erase(_openSet.begin());
+    while(_openSet.size() != 0){
+      currentNode = *_openSet.begin();
+      _openSet.erase(_openSet.begin());
 
-            DrawPoint(currentNode);
-            count_print++;
+      DrawPoint(currentNode);
+      count_print++;
 
-            if(CheckCollision(currentNode))
-                continue;
-            else{
-                if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
-                   // cout << "Current Path Length: : ---- " << _closedSet.size() << endl;
+      if(CheckCollision(currentNode))
+        continue;
+      else{
+        if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
+          // cout << "Current Path Length: : ---- " << _closedSet.size() << endl;
 
-                    _goalNode->setParentNode(currentNode);
-                    vector<NodePtr> path = GetAStarPath();
-                    _pathAStar = path;
+          _goalNode->setParentNode(currentNode);
+          vector<NodePtr> path = GetAStarPath();
+          _pathAStar = path;
 
-                    vector< vector<dReal> > configPath;
-                    configPath.reserve(path.size());
-                    for(NodePtr pnode : path)
-                        configPath.push_back(pnode->getConfiguration());
+          vector< vector<dReal> > configPath;
+          configPath.reserve(path.size());
+          for(NodePtr pnode : path)
+            configPath.push_back(pnode->getConfiguration());
 
-                    endTime = clock();
-                    DrawPath(configPath);
+          endTime = clock();
+          DrawPath(configPath);
 
-                    //ExecuteTrajectory(configPath);
+          //ExecuteTrajectory(configPath);
 
-                    //TO GO ONE BY ONE  :::: REMOVVE IT
-                    //pause = cin.get();
-
-
-                    return;
-                }
-
-            vector<NodePtr> neighbors = GetNeighbors(currentNode);
-            for(NodePtr neighbor : neighbors){
-                    neighbor->setGCost(currentNode->getGCost() + UnweightedDistance(currentNode, neighbor));
-                    neighbor->setHCost(UnweightedDistance(neighbor, _goalNode));
-                    neighbor->setFCost(neighbor->getGCost() + _epsilon * neighbor->getHCost());
-
-                    multiset<NodePtr>::iterator it1 = FindInOpenSet(neighbor);
-                    if(it1 != _openSet.end()){
-                        NodePtr nodeInOpenSet = *it1;
-                        if(nodeInOpenSet->getFCost() < neighbor->getFCost())
-                            continue;
-                        else
-                            _openSet.erase(it1);
-                     }
-
-                    //if in closed set
-                    vector<NodePtr>::iterator it2 = FindInClosedSet(neighbor);
-                    if(it2 != _closedSet.end()){
-                        NodePtr nodeInClosedSet = *it2;
-
-                       if(nodeInClosedSet->getFCost() > neighbor->getFCost()){
-                            //_inconsSet.insert(neighbor);
-                            continue;
-                        }else{
-                            multiset<NodePtr>::iterator it3 = FindInInconSet(neighbor);
-                            if(it3 != _inconsSet.end()){
-                                _inconsSet.erase(it3);
-                                _inconsSet.insert(neighbor);
-                            }else{
-                                _inconsSet.insert(neighbor);
-                            }
-                            continue;
-                        }
-                    }
+          //TO GO ONE BY ONE  :::: REMOVVE IT
+          //pause = cin.get();
 
 
-                    _openSet.insert(neighbor);
-            }
-
-            _closedSet.push_back(currentNode);
-            }
+          return;
         }
-        cout << "Path doesn't exist." << endl;
-        return;
+
+        vector<NodePtr> neighbors = GetNeighbors(currentNode);
+        for(NodePtr neighbor : neighbors){
+          neighbor->setGCost(currentNode->getGCost() + UnweightedDistance(currentNode, neighbor));
+          neighbor->setHCost(UnweightedDistance(neighbor, _goalNode));
+          neighbor->setFCost(neighbor->getGCost() + _epsilon * neighbor->getHCost());
+
+          multiset<NodePtr>::iterator it1 = FindInOpenSet(neighbor);
+          if(it1 != _openSet.end()){
+            NodePtr nodeInOpenSet = *it1;
+            if(nodeInOpenSet->getFCost() < neighbor->getFCost())
+              continue;
+            else
+              _openSet.erase(it1);
+          }
+
+          //if in closed set
+          vector<NodePtr>::iterator it2 = FindInClosedSet(neighbor);
+          if(it2 != _closedSet.end()){
+            NodePtr nodeInClosedSet = *it2;
+
+            if(nodeInClosedSet->getFCost() > neighbor->getFCost()){
+              //_inconsSet.insert(neighbor);
+              continue;
+            }else{
+              multiset<NodePtr>::iterator it3 = FindInInconSet(neighbor);
+              if(it3 != _inconsSet.end()){
+                _inconsSet.erase(it3);
+                _inconsSet.insert(neighbor);
+              }else{
+                _inconsSet.insert(neighbor);
+              }
+              continue;
+            }
+          }
+
+
+          _openSet.insert(neighbor);
+        }
+
+        _closedSet.push_back(currentNode);
+      }
+    }
+    cout << "Path doesn't exist." << endl;
+    return;
   }
 
 
