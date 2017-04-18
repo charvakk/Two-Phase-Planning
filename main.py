@@ -13,21 +13,12 @@ from quadrotor.quadrotor_openrave import state
 #import test
 import time
 import openravepy
-
-#### YOUR IMPORTS GO HERE ####
 from openravepy import *
-#### END OF YOUR IMPORTS ####
-
 import numpy as np
 
 if not __openravepy_build_doc__:
     from openravepy import *
     from numpy import *
-
-
-# if not __openravepy_build_doc__:
-#     from openravepy import *
-#     from numpy import *
 
 def waitrobot(robot):
     """busy wait for robot completion"""
@@ -89,7 +80,7 @@ def set_dof(robot, dof):
     	robot.SetActiveDOFs(
             [], rave.DOFAffine.X | rave.DOFAffine.Y | rave.DOFAffine.Z)
     else:
-        raise NotImplementedError('dof == 4 || dof == 6')
+        raise NotImplementedError('dof == 4 || dof == 6 || dof == 3')
 
 
 
@@ -110,7 +101,6 @@ def run():
     # 1) get the 1st robot that is inside the loaded scene
     # 2) assign it to the variable named 'robot'
     robot = env.GetRobots()[0]
-    # env = robot.GetEnv()
 
     # using import bound to define DOF's
     bounds = get_bounds(robot,3)
@@ -118,16 +108,16 @@ def run():
     # print start
     robot_state = state.State(env, verbose=False)
 
-    ## INITIALIZE YOUR PLUGIN HERE ###
+    # Initializing the plugin
     RaveInitialize()
     RaveLoadPlugin('build/2phase_planning')
     RRTModule = RaveCreateModule(env, 'rrt_module')
-    # END INITIALIZING YOUR PLUGIN ###
 
     startConfig = [0,0,5]
     robot.SetActiveDOFValues(startConfig)
 
     with env:
+    	# Phase-I
         goalConfig = [3,3,1]
         RRTModule.SendCommand("set_step_size 0.4")
         RRTModule.SendCommand("setbias 00")
@@ -140,7 +130,7 @@ def run():
         print "Now Running : " , sinput1
         cmdout = RRTModule.SendCommand(sinput1)
 
-
+		# Phase-II
         startConfig = [0, 0, 5, 0]
         goalConfig = [3, 3, 1, 0]
         bounds = get_bounds(robot,4)
@@ -158,5 +148,4 @@ def run():
 
 if __name__ == "__main__":
     rave.RaveSetDebugLevel(rave.DebugLevel.Verbose)
-
     run()
