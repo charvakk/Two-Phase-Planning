@@ -163,7 +163,10 @@ class rrt_module : public ModuleBase {
 public:
   rrt_module(EnvironmentBasePtr penv, std::istream& ss) : ModuleBase(penv),
   STEP_SIZE(0.4),
-  GOAL_BIAS(31)
+  GOAL_BIAS(31),
+  P1_BIAS(50),
+  _pathIndex(0),
+  _drawOn(true)
   {
     _penv = penv;
     __description = "Implementation of RRT-Connect for RBE 550.";
@@ -177,16 +180,19 @@ public:
                     "Plans and executes path to given goal configuration using AStar.");
     RegisterCommand("arastar",boost::bind(&rrt_module::ARAStar,this,_1,_2),
                     "Plans and executes path to given goal configuration using ARAStar.");
-    RegisterCommand("setbias",boost::bind(&rrt_module::SetBias,this,_1,_2),
+    RegisterCommand("set_goal_bias",boost::bind(&rrt_module::SetGoalBias,this,_1,_2),
                     "Sets the goal bias for planning with the RRT-Connect. Default: 31");
+    RegisterCommand("set_p1_bias",boost::bind(&rrt_module::SetP1Bias,this,_1,_2),
+                    "Sets the phase-1 bias for planning with the RRTs. Default: 31");
     RegisterCommand("test",boost::bind(&rrt_module::Test,this,_1,_2),
                         "Test");
     RegisterCommand("set_step_size",boost::bind(&rrt_module::SetStepSize,this,_1,_2),
                         "Sets the Step Size for planning with the AStar variants. Default: 0.4");
   }
+
   virtual ~rrt_module() {}
 
-  bool SetBias(ostream& sout, istream& sin){
+  bool SetGoalBias(ostream& sout, istream& sin){
     vector<dReal> in = GetInputAsVector(sout, sin);
     try{
       GOAL_BIAS = in[0];
@@ -195,6 +201,18 @@ public:
       return false;
     }
     cout << "Goal bias set to " << GOAL_BIAS << endl;
+    return true;
+  }
+
+  bool SetP1Bias(ostream& sout, istream& sin){
+    vector<dReal> in = GetInputAsVector(sout, sin);
+    try{
+      P1_BIAS = in[0];
+    }catch(exception &e){
+      cout << e.what() << endl;
+      return false;
+    }
+    cout << "Phase-1 bias set to " << P1_BIAS << endl;
     return true;
   }
 
@@ -216,6 +234,7 @@ public:
 
     // Initialize private members from the input
     Init(sout, sin);
+    bool reverse = true;
 
     // Initialize two trees with the start and goal nodes at the respective roots.
     TreePtr treeA(new NodeTree());
@@ -225,12 +244,14 @@ public:
     treeB->addNode(_goalNode);
 
     for(int k = 0; k < COMPUTATION_TIME; ++k){
-      NodePtr randomNode = CreateRandomNode();
+      NodePtr randomNode = CreateRandomNodeWithP1Bias();
+//      NodePtr randomNode = CreateRandomNode();
 
       if(Extend(treeA, randomNode) != "Trapped"){
         if(Connect(treeB, treeA->getMostRecentNode()) == "Reached"){
           treeA->getAllNodes().pop_back();
-          vector<NodePtr> pathA = treeA->getPathTo(treeA->getMostRecentNode()->getId());
+//          vector<NodePtr> pathA = treeA->getPathTo(treeA->getMostRecentNode()->getId());
+          vector<NodePtr> pathA = treeA->getPathTo(_treeAConnectionNode->getId());
           vector<NodePtr> pathB = treeB->getPathTo(treeB->getMostRecentNode()->getId());
           vector<NodePtr> fullPath;
 
@@ -239,10 +260,16 @@ public:
           fullPath.insert(fullPath.end(), pathA.begin(), pathA.end()); //TODO check if this can be done with end, begin to avoid reversing
           fullPath.insert(fullPath.end(), pathB.begin(), pathB.end());
 
+          if(reverse)
+            std::reverse(fullPath.begin(), fullPath.end());
           vector< vector<dReal> > configPath;
           configPath.reserve(fullPath.size());
           for(NodePtr pnode : fullPath)
             configPath.push_back(pnode->getConfiguration());
+
+          for(auto config : configPath){
+            cout << config[0] <<  " " << config[1] << " " << config[2] << " " << config[3] << endl;
+          }
 
           cout << "Found a path!!!" << endl;
           cout << "Executing the path." << endl;
@@ -252,7 +279,7 @@ public:
 
           endTime = clock();
 
-          DrawPath(configPath, red);
+//          DrawPath(configPath, red);
 
           ShortcutSmoothing(fullPath);
 
@@ -264,7 +291,7 @@ public:
           cout << "Smoothed path length :" << configPath2.size() << endl;
 
           clock_t endAfterSmoothing = clock();
-          DrawPath(configPath2, blue);
+//          DrawPath(configPath2, blue);
 
           double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
           double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
@@ -273,11 +300,12 @@ public:
 //
           cout << "Time for computing the path: " << timeForAlgorithm << endl;
           cout << "Time for smoothing the path: " << timeForSmoothing << endl;
-          ExecuteTrajectory(configPath2);
+          ExecuteTrajectory(configPath);
           return true;
         }
       }
       swap(treeA, treeB);
+      reverse = !reverse;
       if(k % 5000 == 0)
         cout << k << ". Searching..." << endl;
     }
@@ -309,7 +337,7 @@ public:
     for(int k = 0; k < COMPUTATION_TIME; ++k){
       //NodePtr randomNode = CreateRandomNodeWithBias();
       //cout << _pathAStar.size() << endl;
-      NodePtr randomNode = CreateNodeWithGaussianBias();
+      NodePtr randomNode = CreateRandomNodeWithGoalnP1Bias();
 
       string status = Connect(tree, randomNode);
       if(status == "GoalReached"){
@@ -392,6 +420,7 @@ public:
           _goalNode->setParentNode(currentNode);
           vector<NodePtr> path = GetAStarPath();
 
+          _pathAStar = path;
           vector< vector<dReal> > configPath;
           configPath.reserve(path.size());
           for(NodePtr pnode : path)
@@ -415,7 +444,6 @@ public:
           //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
 
           ExecuteTrajectory(configPath);
-          cout << "Path found!" << endl;
           return true;
         }
 
@@ -504,7 +532,7 @@ public:
     tree->addNode(_startNode);
 
     for(int k = 0; k < COMPUTATION_TIME; ++k){
-      NodePtr randomNode = CreateRandomNodeWithBias();
+      NodePtr randomNode = CreateRandomNodeWithGoalBias();
 
       string status = RRTStarExtend(tree, randomNode);
       if(status == "GoalReached"){
@@ -630,11 +658,11 @@ public:
 
     _activeDOFRanges.reserve(_activeLowerLimits.size());
     for(size_t i = 0; i < _activeLowerLimits.size(); ++i){
-      cout << "lower: " << _activeLowerLimits[i] << " upper: " << _activeUpperLimits[i] << endl;
       if(i == 3){// || i == 6){
         _activeUpperLimits[i] = M_PI;
         _activeLowerLimits[i] = -M_PI;
       }
+      cout << "lower: " << _activeLowerLimits[i] << " upper: " << _activeUpperLimits[i] << endl;
       _activeDOFRanges[i] = _activeUpperLimits[i]-_activeLowerLimits[i];
     }
 
@@ -777,9 +805,8 @@ public:
     return randomNode;
   }
 
-  /* Returns a random node with any goal bias. */
-  NodePtr CreateRandomNodeWithBias(){
-    /*The idea for goal biasing was referenced from the Internet.*/
+  /* Returns a random node with a goal bias. */
+  NodePtr CreateRandomNodeWithGoalBias(){
     vector<dReal> randomConfig(_activeLowerLimits.size());
     NodePtr randomNode(new Node());
 
@@ -797,9 +824,9 @@ public:
     }
   }
 
-  /* Returns a random node with gaussian bias, with mean as path from astar_variant. */
+  /* Returns a random node with gaussian bias, with mean as path from astar_variant.
   NodePtr CreateNodeWithGaussianBias(){
-    /* TODO : change form of _closedSet as required by RRT */
+     TODO : change form of _closedSet as required by RRT
     NodePtr gaussianNode(new Node());
     default_random_engine generator;
 
@@ -810,7 +837,7 @@ public:
         return _goalNode;
 
     }else{
-        cout << "Following Astar Path " << endl;
+        cout << "Biasing from Phase-I Path " << endl;
         do{
                 NodePtr meanNode = _pathAStar.back();
                 _pathAStar.pop_back();
@@ -844,10 +871,74 @@ public:
 
         }
 
- }
+ }*/
 
+  /* Returns a random node biased towards goal and the path calculated from Phase 1. */
+  NodePtr CreateRandomNodeWithGoalnP1Bias(){
+    NodePtr randomNode(new Node());
 
+    if(RandomNumberGenerator() <= GOAL_BIAS){
+      return _goalNode;
 
+    }else if(RandomNumberGenerator() <= P1_BIAS){
+//      cout << "Picking from Path." << endl;
+      NodePtr tempRandNode = CreateRandomNode();
+      vector<dReal> randomConfig;
+//      cout << "Path index: " << _pathIndex << endl;
+      NodePtr pathNode = _pathAStar[_pathIndex];
+      _pathIndex = (_pathIndex + 1) % _pathAStar.size();
+
+      randomConfig = pathNode->getConfiguration();
+      for(size_t i = 3; i < _activeLowerLimits.size(); ++i){
+        randomConfig.push_back(tempRandNode->getConfiguration().at(i));
+      }
+      randomNode->setConfiguration(randomConfig);
+      return randomNode;
+
+    }else{
+      vector<dReal> randomConfig(_activeLowerLimits.size());
+      do{
+        for(size_t i = 0; i < _activeLowerLimits.size(); ++i){
+          randomConfig[i] = static_cast<dReal>((RandomNumberGenerator()/100 * (_activeDOFRanges[i])) + _activeLowerLimits[i]);
+        }
+        randomNode->setConfiguration(randomConfig);
+      }while(CheckCollision(randomNode));
+
+      return randomNode;
+    }
+  }
+
+  /* Returns a random node biased towards the path calculated from Phase 1. */
+  NodePtr CreateRandomNodeWithP1Bias(){
+    NodePtr randomNode(new Node());
+
+    if(RandomNumberGenerator() <= P1_BIAS){
+      //      cout << "Picking from Path." << endl;
+      NodePtr tempRandNode = CreateRandomNode();
+      vector<dReal> randomConfig;
+      //      cout << "Path index: " << _pathIndex << endl;
+      NodePtr pathNode = _pathAStar[_pathIndex];
+      _pathIndex = (_pathIndex + 1) % _pathAStar.size();
+
+      randomConfig = pathNode->getConfiguration();
+      for(size_t i = 3; i < _activeLowerLimits.size(); ++i){
+        randomConfig.push_back(tempRandNode->getConfiguration().at(i));
+      }
+      randomNode->setConfiguration(randomConfig);
+      return randomNode;
+
+    }else{
+      vector<dReal> randomConfig(_activeLowerLimits.size());
+      do{
+        for(size_t i = 0; i < _activeLowerLimits.size(); ++i){
+          randomConfig[i] = static_cast<dReal>((RandomNumberGenerator()/100 * (_activeDOFRanges[i])) + _activeLowerLimits[i]);
+        }
+        randomNode->setConfiguration(randomConfig);
+      }while(CheckCollision(randomNode));
+
+      return randomNode;
+    }
+  }
 
   /* Returns a random number between, and including, 0 and 99.*/
   float RandomNumberGenerator(){
@@ -903,6 +994,8 @@ public:
         tree->addNode(newNode);
         nearestNode = newNode;
         if(UnweightedDistance(newNode, node) <= STEP_SIZE){
+          if(node->getParentNode() != nullptr)
+            _treeAConnectionNode = node->getParentNode();
           node->setParentNode(newNode);
           tree->addNode(node);
           if(UnweightedDistance(node, _goalNode) <= STEP_SIZE)
@@ -911,8 +1004,8 @@ public:
             return "Reached";
         }else
           status = "Advanced";
-      }else{
-        return "Trapped";}
+      }else
+        return "Trapped";
     }while(status == "Advanced");
     return status;
   }
@@ -1024,7 +1117,8 @@ public:
     }
     NodePtr newNode(new Node());
     newNode->setConfiguration(newConfig);
-    DrawPoint(newNode);
+    if(_drawOn)
+      DrawPoint(newNode);
     return newNode;
   }
 
@@ -1105,7 +1199,10 @@ public:
       string status;
       // connect node1 and node2
       do{
+        bool temp = _drawOn;
+        _drawOn = false;
         NodePtr newNode = NewStep(node1, node2);
+        _drawOn = temp;
 
         if(InLimits(newNode) && !CheckCollision(newNode)){
           newNode->setParentNode(node1);
@@ -1198,7 +1295,7 @@ public:
       final = final->getParentNode();
       path.push_back(final);
     }
-    cout << "Path length" << path.size() << endl;
+//    cout << "Path length" << path.size() << endl;
     return path;
   }
 
@@ -1292,6 +1389,7 @@ private:
   NodePtr _startNode;
   NodePtr _goalNode;
   NodePtr currentNode;
+  NodePtr _treeAConnectionNode;
   vector<dReal> _activeDOFRanges;
   vector<dReal> _dofWeights;
   vector<GraphHandlePtr> _handles;
@@ -1299,7 +1397,6 @@ private:
   string blue = "blue";
   clock_t startTime;
   clock_t endTime;
-
   dReal _epsilon;
   dReal _epsilonDash;
   dReal _epsilonDelta;
@@ -1326,6 +1423,9 @@ private:
   vector<NodePtr> _closedSet;
   dReal STEP_SIZE;
   dReal GOAL_BIAS;
+  dReal P1_BIAS;
+  int _pathIndex;
+  bool _drawOn;
   };
 
 
