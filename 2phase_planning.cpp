@@ -117,6 +117,7 @@ bool NodeTree::addNode(NodePtr p_node){
     return true;
   }catch(exception &e){
     cout << e.what() << endl;
+    cout << "Add node exception" << endl;
     return false;
   }
 }
@@ -135,7 +136,13 @@ NodePtr NodeTree::getNode(int id){
 
 vector<NodePtr> NodeTree::getPathTo(int id){
   // Find the node
-  NodePtr final = getNode(id);
+  NodePtr final;
+  try{
+    final = getNode(id);
+  }catch(int &e){
+    cout << "Node not found in tree" << endl;
+    throw e;
+  }
 
   // Find the path from the parents
   vector<NodePtr> path;
@@ -250,14 +257,19 @@ public:
       if(Extend(treeA, randomNode) != "Trapped"){
         if(Connect(treeB, treeA->getMostRecentNode()) == "Reached"){
           treeA->getAllNodes().pop_back();
-//          vector<NodePtr> pathA = treeA->getPathTo(treeA->getMostRecentNode()->getId());
-          vector<NodePtr> pathA = treeA->getPathTo(_treeAConnectionNode->getId());
-          vector<NodePtr> pathB = treeB->getPathTo(treeB->getMostRecentNode()->getId());
+          vector<NodePtr> pathA;
+          vector<NodePtr> pathB;
+          try{
+          pathA = treeA->getPathTo(_treeAConnectionNode->getId());
+          pathB = treeB->getPathTo(treeB->getMostRecentNode()->getId());
+          }catch(int &e){
+            cout << "Node don't exist in tree." << endl;
+          }
           vector<NodePtr> fullPath;
 
           std::reverse(pathA.begin(), pathA.end());
           fullPath.reserve(pathA.size() + pathB.size()); // preallocate memory
-          fullPath.insert(fullPath.end(), pathA.begin(), pathA.end()); //TODO check if this can be done with end, begin to avoid reversing
+          fullPath.insert(fullPath.end(), pathA.begin(), pathA.end());
           fullPath.insert(fullPath.end(), pathB.begin(), pathB.end());
 
           if(reverse)
@@ -323,10 +335,10 @@ public:
     // Initialize private members from the input
     Init(sout, sin);
 
-    for(size_t i=0 ; i < _pathAStar.size() ; i++){
+    /*for(size_t i=0 ; i < _pathAStar.size() ; i++){
         vector<dReal> tempConfig = _pathAStar[i]->getConfiguration();
         cout << "Config ID "<< i << " : " << tempConfig[0] << " " << tempConfig[1] << " " << tempConfig[2] << endl;
-    }
+    }*/
 
     //NodePtr testNode = CreateNodeWithGaussianBias();
 
@@ -341,10 +353,18 @@ public:
 
       string status = Connect(tree, randomNode);
       if(status == "GoalReached"){
-        vector<NodePtr> path = tree->getPathTo(_goalNode->getId());
+        cout << "HERE in goal" << endl; //TODO
+        vector<NodePtr> path;
+        try{
+          path = tree->getPathTo(_goalNode->getId());
+        }catch(int &e){
+          cout << "Goal not found in tree" << endl;
+        }
+        cout << "2HERE in goal" << endl; //TODO
 
         vector< vector<dReal> > configPath;
         configPath.reserve(path.size());
+        cout << "3HERE in goal" << endl; //TODO
         for(NodePtr pnode : path)
           configPath.push_back(pnode->getConfiguration());
 
@@ -364,6 +384,7 @@ public:
 
         ShortcutSmoothing(path);
 
+        cout << "4HERE in goal" << endl; //TODO
         vector< vector<dReal> > configPath2;
         configPath2.reserve(path.size());
         for(NodePtr pnode : path)
@@ -427,7 +448,6 @@ public:
             configPath.push_back(pnode->getConfiguration());
 
           cout << "Found a path!!!" << endl;
-          cout << "Executing the path." << endl;
 
           //        cout << "Number of nodes explored :" << endl;
           //        cout << tree->getSize() << endl;
@@ -509,10 +529,17 @@ public:
         _closedSet.clear();
         ImprovePath();
         updateEpsilon();
-
     }
 
-    cout << "path length :" << _pathAStar.size() << endl;
+    cout << "Found a path!!!" << endl;
+    cout << "Path length :" << _pathAStar.size() << endl;
+
+    endTime = clock();
+
+    double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+
+    cout << "Time for computing the path: " << timeForAlgorithm << endl;
+
     cout << "................ARA Ending................." << endl;
     return true;
   }
@@ -536,7 +563,12 @@ public:
 
       string status = RRTStarExtend(tree, randomNode);
       if(status == "GoalReached"){
-        vector<NodePtr> path = tree->getPathTo(_goalNode->getId());
+        vector<NodePtr> path;
+        try{
+          path = tree->getPathTo(_goalNode->getId());
+        }catch(int &e){
+          cout << "Goal not found in the tree" << endl;
+        }
 
         vector< vector<dReal> > configPath;
         configPath.reserve(path.size());
@@ -980,33 +1012,41 @@ public:
   /* Tries to connect the tree to the given node. */
   string Connect(TreePtr tree, NodePtr node){
     string status;
-    NodePtr nearestNode = NearestNode(tree, node);
-    NodePtr start = nearestNode;
-    do{
-      NodePtr newNode;
-      try{
-          newNode = NewStep(nearestNode, node);
-         }catch(int &a){
-           return "Trapped";
-         }
-      if(InLimits(newNode) && !CheckCollision(newNode)){
-        newNode->setParentNode(nearestNode);
-        tree->addNode(newNode);
-        nearestNode = newNode;
-        if(UnweightedDistance(newNode, node) <= STEP_SIZE){
-          if(node->getParentNode() != nullptr)
-            _treeAConnectionNode = node->getParentNode();
-          node->setParentNode(newNode);
-          tree->addNode(node);
-          if(UnweightedDistance(node, _goalNode) <= STEP_SIZE)
-            return "GoalReached";
-          else
-            return "Reached";
+    try {
+      NodePtr nearestNode = NearestNode(tree, node);
+      NodePtr start = nearestNode;
+      do{
+        NodePtr newNode;
+        try{
+            newNode = NewStep(nearestNode, node);
+           }catch(int &a){
+             return "Trapped";
+           }
+        if(InLimits(newNode) && !CheckCollision(newNode)){
+          newNode->setParentNode(nearestNode);
+          tree->addNode(newNode);
+          nearestNode = newNode;
+          if(UnweightedDistance(newNode, node) <= STEP_SIZE){
+            if(node->getParentNode() != nullptr){
+              _treeAConnectionNode = node->getParentNode();
+            }
+            node->setParentNode(newNode);
+            tree->addNode(node);
+            if(UnweightedDistance(node, _goalNode) == 0){
+              _goalNode->setParentNode(newNode);
+              tree->addNode(_goalNode);
+              return "GoalReached";
+            }
+            else
+              return "Reached";
+          }else
+            status = "Advanced";
         }else
-          status = "Advanced";
-      }else
-        return "Trapped";
-    }while(status == "Advanced");
+          return "Trapped";
+      }while(status == "Advanced");
+    } catch (exception &e) {
+      cout << "Connect exception" << endl;
+    }
     return status;
   }
 
@@ -1200,9 +1240,14 @@ public:
       // connect node1 and node2
       do{
         bool temp = _drawOn;
-        _drawOn = false;
-        NodePtr newNode = NewStep(node1, node2);
-        _drawOn = temp;
+        NodePtr newNode;
+        try{
+          _drawOn = false;
+          newNode = NewStep(node1, node2);
+          _drawOn = temp;
+        }catch(int &a){
+          status = "Trapped";
+        }
 
         if(InLimits(newNode) && !CheckCollision(newNode)){
           newNode->setParentNode(node1);
