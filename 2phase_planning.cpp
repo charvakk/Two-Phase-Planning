@@ -17,7 +17,7 @@
 #include <set>
 
 #define COMPUTATION_TIME 35000
-#define INPUT_SIZE 52
+#define INPUT_SIZE 100
 #define CLOSE_ENOUGH 0.2
 #define SMOOTHING_ITERATIONS 200
 
@@ -195,6 +195,8 @@ public:
                         "Test");
     RegisterCommand("set_step_size",boost::bind(&rrt_module::SetStepSize,this,_1,_2),
                         "Sets the Step Size for planning with the AStar variants. Default: 0.4");
+    RegisterCommand("set_file_name",boost::bind(&rrt_module::SetFileName,this,_1,_2),
+                    "Sets the file name for saving experiment results");
   }
 
   virtual ~rrt_module() {}
@@ -235,6 +237,21 @@ public:
     return true;
   }
 
+  bool SetFileName(ostream& sout, istream& sin){
+    char input[INPUT_SIZE];
+    try{
+      vector<string> temp;
+      sin.getline(input, INPUT_SIZE);
+      utils::TokenizeString(input, "[ ,]", temp);
+      _fileName = temp[0];
+    }catch(exception &e){
+      cout << e.what() << endl;
+      return false;
+    }
+    return true;
+  }
+
+
   /*-----------------------------------------------------------------------------Bi-Directional RRT----------------------------------------------------------------*/
 
   bool BiRRT(ostream& sout, istream& sin){
@@ -274,45 +291,45 @@ public:
 
           if(reverse)
             std::reverse(fullPath.begin(), fullPath.end());
-          vector< vector<dReal> > configPath;
-          configPath.reserve(fullPath.size());
-          for(NodePtr pnode : fullPath)
-            configPath.push_back(pnode->getConfiguration());
+//          vector< vector<dReal> > configPath;
+//          configPath.reserve(fullPath.size());
+//          for(NodePtr pnode : fullPath)
+//            configPath.push_back(pnode->getConfiguration());
 
-          for(auto config : configPath){
-            cout << config[0] <<  " " << config[1] << " " << config[2] << " " << config[3] << endl;
-          }
+//          for(auto config : configPath){
+//            cout << config[0] <<  " " << config[1] << " " << config[2] << " " << config[3] << endl;
+//          }
 
-          cout << "Found a path!!!" << endl;
-          cout << "Executing the path." << endl;
+//          cout << "Found a path!!!" << endl;
+//          cout << "Executing the path." << endl;
 
-          cout << "Number of nodes explored: " << treeA->getSize() + treeB->getSize() << endl;
-          cout << "Path length :" << configPath.size() << endl;
+//          cout << "Number of nodes explored: " << treeA->getSize() + treeB->getSize() << endl;
+//          cout << "Path length :" << configPath.size() << endl;
 
           endTime = clock();
 
 //          DrawPath(configPath, red);
 
-          ShortcutSmoothing(fullPath);
+//          ShortcutSmoothing(fullPath);
 
-          vector< vector<dReal> > configPath2;
-          configPath2.reserve(fullPath.size());
-          for(NodePtr pnode : fullPath)
-            configPath2.push_back(pnode->getConfiguration());
+//          vector< vector<dReal> > configPath2;
+//          configPath2.reserve(fullPath.size());
+//          for(NodePtr pnode : fullPath)
+//            configPath2.push_back(pnode->getConfiguration());
+//
+//          cout << "Smoothed path length :" << configPath2.size() << endl;
 
-          cout << "Smoothed path length :" << configPath2.size() << endl;
-
-          clock_t endAfterSmoothing = clock();
+//          clock_t endAfterSmoothing = clock();
 //          DrawPath(configPath2, blue);
 
           double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
-          double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
+//          double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
 
-//          WriteBiStuffToFile(timeForAlgorithm, timeForSmoothing, (treeA->getSize()+treeB->getSize()), configPath.size());
+          WriteBiStuffToFile(P1_BIAS, (_timeForP1 + timeForAlgorithm), (treeA->getSize()+treeB->getSize()));
 //
-          cout << "Time for computing the path: " << timeForAlgorithm << endl;
-          cout << "Time for smoothing the path: " << timeForSmoothing << endl;
-          ExecuteTrajectory(configPath);
+//          cout << "Time for computing the path: " << timeForAlgorithm << endl;
+//          cout << "Time for smoothing the path: " << timeForSmoothing << endl;
+//          ExecuteTrajectory(configPath);
           return true;
         }
       }
@@ -353,60 +370,56 @@ public:
 
       string status = Connect(tree, randomNode);
       if(status == "GoalReached"){
-        cout << "HERE in goal" << endl; //TODO
         vector<NodePtr> path;
         try{
           path = tree->getPathTo(_goalNode->getId());
         }catch(int &e){
           cout << "Goal not found in tree" << endl;
         }
-        cout << "2HERE in goal" << endl; //TODO
 
-        vector< vector<dReal> > configPath;
-        configPath.reserve(path.size());
-        cout << "3HERE in goal" << endl; //TODO
-        for(NodePtr pnode : path)
-          configPath.push_back(pnode->getConfiguration());
-
-
-        cout << "Found a path!!!" << endl;
-        cout << "Executing the path." << endl;
-
-        cout << "Number of nodes explored :" << endl;
-        cout << tree->getSize() << endl;
-
-        cout << "Path length: " << configPath.size() << endl;
+//        vector< vector<dReal> > configPath;
+//        configPath.reserve(path.size());
+//        for(NodePtr pnode : path)
+//          configPath.push_back(pnode->getConfiguration());
+//
+//
+//        cout << "Found a path!!!" << endl;
+//        cout << "Executing the path." << endl;
+//
+//        cout << "Number of nodes explored :" << endl;
+//        cout << tree->getSize() << endl;
+//
+//        cout << "Path length: " << configPath.size() << endl;
 
         endTime = clock();
 
 //        DrawPath(configPath, red);
 //        DrawPath(configPath);
 
-        ShortcutSmoothing(path);
+//        ShortcutSmoothing(path);
 
-        cout << "4HERE in goal" << endl; //TODO
-        vector< vector<dReal> > configPath2;
-        configPath2.reserve(path.size());
-        for(NodePtr pnode : path)
-          configPath2.push_back(pnode->getConfiguration());
-
-        cout << "Smoothed path length :" << configPath2.size() << endl;
-
-        clock_t endAfterSmoothing = clock();
-
+//        vector< vector<dReal> > configPath2;
+//        configPath2.reserve(path.size());
+//        for(NodePtr pnode : path)
+//          configPath2.push_back(pnode->getConfiguration());
+//
+//        cout << "Smoothed path length :" << configPath2.size() << endl;
+//
+//        clock_t endAfterSmoothing = clock();
+//
 //        DrawPath(configPath2, blue);
-        DrawPath(configPath2);
+//        DrawPath(configPath2);
 
         double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
-        double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
+//        double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
 
 
-        cout << "Time for computing the path: " << timeForAlgorithm << endl;
-        cout << "Time for smoothing the path: " << timeForSmoothing << endl;
+//        cout << "Time for computing the path: " << timeForAlgorithm << endl;
+//        cout << "Time for smoothing the path: " << timeForSmoothing << endl;
 
-        //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
+        WriteStuffToFile(GOAL_BIAS, P1_BIAS, (_timeForP1 + timeForAlgorithm), tree->getSize());
 
-        ExecuteTrajectory(configPath2);
+//        ExecuteTrajectory(configPath2);
         return true;
       }
       if(k % 5000 == 0)
@@ -442,28 +455,26 @@ public:
           vector<NodePtr> path = GetAStarPath();
 
           _pathAStar = path;
-          vector< vector<dReal> > configPath;
-          configPath.reserve(path.size());
-          for(NodePtr pnode : path)
-            configPath.push_back(pnode->getConfiguration());
+//          vector< vector<dReal> > configPath;
+//          configPath.reserve(path.size());
+//          for(NodePtr pnode : path)
+//            configPath.push_back(pnode->getConfiguration());
 
-          cout << "Found a path!!!" << endl;
+//          cout << "Found a path!!!" << endl;
 
           //        cout << "Number of nodes explored :" << endl;
           //        cout << tree->getSize() << endl;
 
-          cout << "Path length: " << configPath.size() << endl;
+//          cout << "Path length: " << configPath.size() << endl;
 
           endTime = clock();
-          DrawPath(configPath);
+//          DrawPath(configPath);
 
-          double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+          _timeForP1 = (endTime-startTime)/(double)CLOCKS_PER_SEC;
 
-          cout << "Time for computing the path: " << timeForAlgorithm << endl;
+//          cout << "Time for computing the path: " << timeForAlgorithm << endl;
 
-          //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
-
-          ExecuteTrajectory(configPath);
+//          ExecuteTrajectory(configPath);
           return true;
         }
 
@@ -524,23 +535,23 @@ public:
     updateEpsilon();
 
     while(_epsilonDash > 1){
-        cout << "Current Epsilon.. " << _epsilon << endl;
+//        cout << "Current Epsilon.. " << _epsilon << endl;
         _epsilon -= _epsilonDelta;
         _closedSet.clear();
         ImprovePath();
         updateEpsilon();
     }
 
-    cout << "Found a path!!!" << endl;
-    cout << "Path length :" << _pathAStar.size() << endl;
+//    cout << "Found a path!!!" << endl;
+//    cout << "Path length :" << _pathAStar.size() << endl;
 
     endTime = clock();
 
-    double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+    _timeForP1 = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+//    WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
+//    cout << "Time for computing the path: " << timeForAlgorithm << endl;
 
-    cout << "Time for computing the path: " << timeForAlgorithm << endl;
-
-    cout << "................ARA Ending................." << endl;
+//    cout << "................ARA Ending................." << endl;
     return true;
   }
 
@@ -559,7 +570,7 @@ public:
     tree->addNode(_startNode);
 
     for(int k = 0; k < COMPUTATION_TIME; ++k){
-      NodePtr randomNode = CreateRandomNodeWithGoalBias();
+      NodePtr randomNode = CreateRandomNodeWithGoalnP1Bias();
 
       string status = RRTStarExtend(tree, randomNode);
       if(status == "GoalReached"){
@@ -570,52 +581,52 @@ public:
           cout << "Goal not found in the tree" << endl;
         }
 
-        vector< vector<dReal> > configPath;
-        configPath.reserve(path.size());
-        for(NodePtr pnode : path)
-          configPath.push_back(pnode->getConfiguration());
-
-
-        cout << "Found a path!!!" << endl;
-        cout << "Executing the path." << endl;
-
-        cout << "Number of nodes explored :" << endl;
-        cout << tree->getSize() << endl;
-
-        cout << "Path length: " << configPath.size() << endl;
+//        vector< vector<dReal> > configPath;
+//        configPath.reserve(path.size());
+//        for(NodePtr pnode : path)
+//          configPath.push_back(pnode->getConfiguration());
+//
+//
+//        cout << "Found a path!!!" << endl;
+//        cout << "Executing the path." << endl;
+//
+//        cout << "Number of nodes explored :" << endl;
+//        cout << tree->getSize() << endl;
+//
+//        cout << "Path length: " << configPath.size() << endl;
 
         endTime = clock();
 
 //        DrawPath(configPath, red);
 //        DrawPath(configPath);
 
-        ShortcutSmoothing(path);
+//        ShortcutSmoothing(path);
 
-        vector< vector<dReal> > configPath2;
-        configPath2.reserve(path.size());
-        for(NodePtr pnode : path)
-          configPath2.push_back(pnode->getConfiguration());
+//        vector< vector<dReal> > configPath2;
+//        configPath2.reserve(path.size());
+//        for(NodePtr pnode : path)
+//          configPath2.push_back(pnode->getConfiguration());
+
+//        cout << "Smoothed path length :" << configPath2.size() << endl;
 //
-        cout << "Smoothed path length :" << configPath2.size() << endl;
-//
-        clock_t endAfterSmoothing = clock();
+//        clock_t endAfterSmoothing = clock();
 
 //        DrawPath(configPath2, blue);
-        DrawPath(configPath2);
+//        DrawPath(configPath2);
 
         double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
-        double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
+//        double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
 
 
-        cout << "Time for computing the path: " << timeForAlgorithm << endl;
-        cout << "Time for smoothing the path: " << timeForSmoothing << endl;
+//        cout << "Time for computing the path: " << timeForAlgorithm << endl;
+//        cout << "Time for smoothing the path: " << timeForSmoothing << endl;
 
-        //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
+        WriteStuffToFile(GOAL_BIAS, P1_BIAS, (_timeForP1 + timeForAlgorithm), tree->getSize());
 
-        ExecuteTrajectory(configPath2);
+//        ExecuteTrajectory(configPath2);
         return true;
       }
-      if(k % 500 == 0)
+      if(k % 5000 == 0)
         cout << k << ". Searching..." << endl;
     }
     cout << "Time up :(" << endl;
@@ -694,7 +705,7 @@ public:
         _activeUpperLimits[i] = M_PI;
         _activeLowerLimits[i] = -M_PI;
       }
-      cout << "lower: " << _activeLowerLimits[i] << " upper: " << _activeUpperLimits[i] << endl;
+//      cout << "lower: " << _activeLowerLimits[i] << " upper: " << _activeUpperLimits[i] << endl;
       _activeDOFRanges[i] = _activeUpperLimits[i]-_activeLowerLimits[i];
     }
 
@@ -711,6 +722,7 @@ public:
     // Get robot
     _penv->GetRobots(_robots);
     _robot = _robots.at(0);
+
 
     // Get active DOF values
     _robot->GetActiveDOFValues(_startConfig);
@@ -1411,17 +1423,23 @@ public:
       file << std::fixed << std::setprecision(2) << num << "," << size << "\n";
     }
 
-  void WriteStuffToFile(double algo, double smoothing, int nodes, int unsmoothed, int smoothed){
-      ofstream file;
-      file.open("5stuff.csv", ios_base::app);
-      file << std::fixed << std::setprecision(2) << algo << "," << smoothing << "," << nodes << "," << unsmoothed << "," << smoothed << "\n";
-    }
+//  void WriteStuffToFile(double algo, double smoothing, int nodes, int unsmoothed, int smoothed){
+//      ofstream file;
+//      file.open("5stuff.csv", ios_base::app);
+//      file << std::fixed << std::setprecision(2) << algo << "," << smoothing << "," << nodes << "," << unsmoothed << "," << smoothed << "\n";
+//    }
 
-  void WriteBiStuffToFile(double algo, double smoothing, int nodes, int unsmoothed){
-        ofstream file;
-        file.open("extra_stuff.csv", ios_base::app);
-        file << std::fixed << std::setprecision(2) << algo+smoothing << "," << nodes << "," << unsmoothed << "\n";
-      }
+  void WriteStuffToFile(dReal gBias, dReal pBias, double time, int size){
+    ofstream file;
+    file.open(_fileName.c_str(), ios_base::app);
+    file << std::fixed << std::setprecision(2) << gBias << "," << pBias-gBias << "," << time << "," << size << "\n";
+  }
+
+  void WriteBiStuffToFile(dReal pBias, double time, int size){
+    ofstream file;
+    file.open(_fileName.c_str(), ios_base::app);
+    file << std::fixed << std::setprecision(2) << pBias << "," << time << "," << size << "\n";
+  }
 
 private:
   EnvironmentBasePtr _penv;
@@ -1446,6 +1464,7 @@ private:
   dReal _epsilonDash;
   dReal _epsilonDelta;
   vector<NodePtr> _pathAStar;
+  double _timeForP1;
 
   dReal _gaussianFactor = 50;
   float _gaussVarX = 1;
@@ -1471,6 +1490,7 @@ private:
   dReal P1_BIAS;
   int _pathIndex;
   bool _drawOn;
+  string _fileName;
   };
 
 

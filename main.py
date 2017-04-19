@@ -2,7 +2,7 @@
 #motion planning project
 from __future__ import division
 from __future__ import with_statement  # for python 2.5
-
+import sys
 import time
 import openravepy as rave
 import argparse
@@ -82,71 +82,85 @@ def set_dof(robot, dof):
     else:
         raise NotImplementedError('dof == 4 || dof == 6 || dof == 3')
 
+def init():
+	args = parse_args()
+    	params = parser.Yaml(file_name=args.params)
+	global env
+	env = rave.Environment()
+   	#env.SetViewer('qtcoin')
+	env.Reset()
+	# load a scene from ProjectRoom environment XML file
+	env.Load(params.scene)
+	env.UpdatePublishedBodies()
+	time.sleep(0.1)
 
+	# 1) get the 1st robot that is inside the loaded scene
+	# 2) assign it to the variable named 'robot'
+	global robot
+	robot = env.GetRobots()[0]
+
+	# using import bound to define DOF's
+	bounds = get_bounds(robot,3)
+	# start = robot.GetActiveDOFValues()
+	# print start
+	robot_state = state.State(env, verbose=False)
 
 
 @rave.with_destroy
-def run():
-
-    args = parse_args()
-    params = parser.Yaml(file_name=args.params)
-    env = rave.Environment()
-    env.SetViewer('qtcoin')
-    env.Reset()
-    # load a scene from ProjectRoom environment XML file
-    env.Load(params.scene)
-    env.UpdatePublishedBodies()
-    time.sleep(0.1)
-
-    # 1) get the 1st robot that is inside the loaded scene
-    # 2) assign it to the variable named 'robot'
-    robot = env.GetRobots()[0]
-
-    # using import bound to define DOF's
-    bounds = get_bounds(robot,3)
-    # start = robot.GetActiveDOFValues()
-    # print start
-    robot_state = state.State(env, verbose=False)
-
+def run(p1, p2, gBias, pBias):
+    init()
     # Initializing the plugin
     RaveInitialize()
     RaveLoadPlugin('build/2phase_planning')
     RRTModule = RaveCreateModule(env, 'rrt_module')
-
     startConfig = [0,0,5]
     robot.SetActiveDOFValues(startConfig)
 
+    # p1 = 'astar '
+    # p2 = 'rrtconnect '
+    # print p1 + p2
     with env:
     	# Phase-I
         goalConfig = [3,3,1]
+	fileName = 'data/' + p1 + p2 + str(gBias) + str(pBias) + '.csv'
+	print fileName
+        RRTModule.SendCommand('set_file_name ' + fileName)
         RRTModule.SendCommand('set_step_size 0.4')
 
-        sinput1 = 'astar ' + str(goalConfig)
-
+        sinput1 = p1 + ' ' + str(goalConfig)
         # sinput = 'help'
-        print '---------START-------------'
-
-        print "Now Running : " , sinput1
+        # print '---------START-------------'
+        # print "Now Running : " , sinput1
         cmdout = RRTModule.SendCommand(sinput1)
 
 	# Phase-II
-	RRTModule.SendCommand('set_goal_bias 10')
-	RRTModule.SendCommand('set_p1_bias 50')
+	RRTModule.SendCommand('set_goal_bias ' + str(gBias))
+	RRTModule.SendCommand('set_p1_bias ' + str(pBias))
         startConfig = [0, 0, 5, 0]
         goalConfig = [3, 3, 1, 0]
         bounds = get_bounds(robot,4)
         robot.SetActiveDOFValues(startConfig)
         RRTModule.SendCommand('set_step_size 0.2')
-        sinput2 = 'rrtconnect ' + str(goalConfig)
-        print "Now Running : " , sinput2
+        sinput2 = p2 + ' ' + str(goalConfig)
+        # print "Now Running : " , sinput2
         cmdout = RRTModule.SendCommand(sinput2)
 
-        print '---------FINISH------------'
-
-    waitrobot(robot)
-
-    raw_input("Press enter to exit...")
+        # print '---------FINISH------------'
 
 if __name__ == "__main__":
     rave.RaveSetDebugLevel(rave.DebugLevel.Verbose)
-    run()
+    #init()
+    phase1 = ['arastar']
+    phase2 = ['rrtstar', 'birrt']
+    goalBiases = [10, 20, 30, 40, 50]
+
+    for p1 in phase1:
+    	for p2 in phase2:
+    		for gBias in goalBiases:
+    			for pBias in range(gBias+10, 100, 10):
+    				for expNo in range(1,11):
+	    				run(p1, p2, gBias, pBias)
+					
+	#waitrobot(robot)
+
+    #raw_input("Press enter to exit...")
