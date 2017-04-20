@@ -103,6 +103,14 @@ void Node::setHCost(float hCost){
   m_fhCost = hCost;
 }
 
+float Node::getEKey() const{
+  return m_feKey;
+}
+
+void Node::setEKey(float eKey){
+    m_feKey = eKey;
+}
+
 /*---------------------------------------------------------------------------------------------------------------------------*/
 
 
@@ -177,6 +185,8 @@ public:
                     "Plans and executes path to given goal configuration using AStar.");
     RegisterCommand("arastar",boost::bind(&rrt_module::ARAStar,this,_1,_2),
                     "Plans and executes path to given goal configuration using ARAStar.");
+    RegisterCommand("anastar",boost::bind(&rrt_module::ANAStar,this,_1,_2),
+                    "Plans and executes path to given goal configuration using ANAStar.");
     RegisterCommand("setbias",boost::bind(&rrt_module::SetBias,this,_1,_2),
                     "Sets the goal bias for planning with the RRT-Connect. Default: 31");
     RegisterCommand("test",boost::bind(&rrt_module::Test,this,_1,_2),
@@ -370,6 +380,77 @@ public:
   /*--------------------------------------------------------------------------------RRT-Connect--------------------------------------------------------------------*/
 
 
+  /*--------------------------------------------------------------------------------RRTStar--------------------------------------------------------------------*/
+
+  bool RRTStar(ostream& sout, istream& sin){
+    // Initialize private members from the input
+    Init(sout, sin);
+
+    // Initialize the tree with the start node at the root.
+    TreePtr tree(new NodeTree());
+    tree->addNode(_startNode);
+
+    for(int k = 0; k < COMPUTATION_TIME; ++k){
+      NodePtr randomNode = CreateRandomNodeWithBias();
+
+      string status = RRTStarExtend(tree, randomNode);
+      if(status == "GoalReached"){
+        vector<NodePtr> path = tree->getPathTo(_goalNode->getId());
+
+        vector< vector<dReal> > configPath;
+        configPath.reserve(path.size());
+        for(NodePtr pnode : path)
+          configPath.push_back(pnode->getConfiguration());
+
+
+        cout << "Found a path!!!" << endl;
+        cout << "Executing the path." << endl;
+
+        cout << "Number of nodes explored :" << endl;
+        cout << tree->getSize() << endl;
+
+        cout << "Path length: " << configPath.size() << endl;
+
+        endTime = clock();
+
+//        DrawPath(configPath, red);
+//        DrawPath(configPath);
+
+        ShortcutSmoothing(path);
+
+        vector< vector<dReal> > configPath2;
+        configPath2.reserve(path.size());
+        for(NodePtr pnode : path)
+          configPath2.push_back(pnode->getConfiguration());
+//
+        cout << "Smoothed path length :" << configPath2.size() << endl;
+//
+        clock_t endAfterSmoothing = clock();
+
+//        DrawPath(configPath2, blue);
+        DrawPath(configPath2);
+
+        double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
+        double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
+
+
+        cout << "Time for computing the path: " << timeForAlgorithm << endl;
+        cout << "Time for smoothing the path: " << timeForSmoothing << endl;
+
+        //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
+
+        ExecuteTrajectory(configPath2);
+        return true;
+      }
+      if(k % 500 == 0)
+        cout << k << ". Searching..." << endl;
+    }
+    cout << "Time up :(" << endl;
+    return false;
+  }
+
+  /*--------------------------------------------------------------------------------RRTStar--------------------------------------------------------------------*/
+
 
   /*--------------------------------------------------------------------------------AStar--------------------------------------------------------------------*/
 
@@ -492,77 +573,26 @@ public:
   /*--------------------------------------------------------------------------------ARAStar--------------------------------------------------------------------*/
 
 
+  /*--------------------------------------------------------------------------------ANAStar--------------------------------------------------------------------*/
 
-  /*--------------------------------------------------------------------------------RRTStar--------------------------------------------------------------------*/
+  bool ANAStar(ostream& sout, istream& sin){
+    _G_ANA = 99999;
+    _E_ANA = 99999;
+    InitANAStar(sout, sin);
+    cout << "Inside ANA Star .. " << _openSet_ANA.size() << endl;
 
-  bool RRTStar(ostream& sout, istream& sin){
-    // Initialize private members from the input
-    Init(sout, sin);
-
-    // Initialize the tree with the start node at the root.
-    TreePtr tree(new NodeTree());
-    tree->addNode(_startNode);
-
-    for(int k = 0; k < COMPUTATION_TIME; ++k){
-      NodePtr randomNode = CreateRandomNodeWithBias();
-
-      string status = RRTStarExtend(tree, randomNode);
-      if(status == "GoalReached"){
-        vector<NodePtr> path = tree->getPathTo(_goalNode->getId());
-
-        vector< vector<dReal> > configPath;
-        configPath.reserve(path.size());
-        for(NodePtr pnode : path)
-          configPath.push_back(pnode->getConfiguration());
-
-
-        cout << "Found a path!!!" << endl;
-        cout << "Executing the path." << endl;
-
-        cout << "Number of nodes explored :" << endl;
-        cout << tree->getSize() << endl;
-
-        cout << "Path length: " << configPath.size() << endl;
-
-        endTime = clock();
-
-//        DrawPath(configPath, red);
-//        DrawPath(configPath);
-
-        ShortcutSmoothing(path);
-
-        vector< vector<dReal> > configPath2;
-        configPath2.reserve(path.size());
-        for(NodePtr pnode : path)
-          configPath2.push_back(pnode->getConfiguration());
-//
-        cout << "Smoothed path length :" << configPath2.size() << endl;
-//
-        clock_t endAfterSmoothing = clock();
-
-//        DrawPath(configPath2, blue);
-        DrawPath(configPath2);
-
-        double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
-        double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
-
-
-        cout << "Time for computing the path: " << timeForAlgorithm << endl;
-        cout << "Time for smoothing the path: " << timeForSmoothing << endl;
-
-        //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
-
-        ExecuteTrajectory(configPath2);
-        return true;
-      }
-      if(k % 500 == 0)
-        cout << k << ". Searching..." << endl;
+    while(_openSet_ANA.size() != 0){
+        cout << "Im here" << endl;
+        ImproveSolution();
+        cout << "Current Optimal Solution _E_ANA :: " << _E_ANA << endl;
+        updateOpenList();
     }
-    cout << "Time up :(" << endl;
-    return false;
+
+    cout << "Ana Finished " << endl;
+    return true;
   }
 
-  /*--------------------------------------------------------------------------------RRTStar--------------------------------------------------------------------*/
+  /*--------------------------------------------------------------------------------ANAStar--------------------------------------------------------------------*/
 
 
   bool Test(ostream& sout, istream& sin){
@@ -652,23 +682,29 @@ public:
     _penv->GetRobots(_robots);
     _robot = _robots.at(0);
 
-    // Get active DOF values
     _robot->GetActiveDOFValues(_startConfig);
 
-    // Parse goal config - might need to change INPUT_SIZE
     _goalConfig = GetInputAsVector(so, si);
 
-    // Get DOF limits?
-
-    // Get Ranges?
-
-    // Set DOF weights?
-
-    // Initialize start and goal nodes
     _startNode = NodePtr(new Node(_startConfig, nullptr));
     _goalNode = NodePtr(new Node(_goalConfig, nullptr));
 
     _openSet.insert(_startNode);
+    startTime = clock();
+  }
+
+  void InitANAStar(ostream& so, istream& si){
+    // Get robot
+    _penv->GetRobots(_robots);
+    _robot = _robots.at(0);
+    _robot->GetActiveDOFValues(_startConfig);
+    _goalConfig = GetInputAsVector(so, si);
+
+    _startNode = NodePtr(new Node(_startConfig, nullptr));
+    //_startNode->setEKey(_G_ANA);
+
+    _goalNode = NodePtr(new Node(_goalConfig, nullptr));
+    _openSet_ANA.insert(_startNode);
     startTime = clock();
   }
 
@@ -682,7 +718,9 @@ public:
 
   /*Improve Path function for ARA | ANA takes care for inconsistent list */
   void ImprovePath(){
+      //cout << "Im here also :: " << _openSet_ANA.size() << endl;
       while(_openSet.size() != 0){
+        //    cout << "Inside Improve Path :: " << _openSet_ANA.size() << endl;
             currentNode = *_openSet.begin();
             _openSet.erase(_openSet.begin());
 
@@ -706,12 +744,6 @@ public:
 
                     endTime = clock();
                     DrawPath(configPath);
-
-                    //ExecuteTrajectory(configPath);
-
-                    //TO GO ONE BY ONE  :::: REMOVVE IT
-                    //pause = cin.get();
-
 
                     return;
                 }
@@ -760,6 +792,78 @@ public:
         }
         cout << "Path doesn't exist." << endl;
         return;
+  }
+
+  /*Improve path for ANAStar */
+  void ImproveSolution(){
+
+    while(_openSet_ANA.size() != 0){
+        currentNode = *_openSet_ANA.begin();
+        _openSet_ANA.erase(_openSet_ANA.begin());
+        DrawPoint(currentNode);
+        cout << "_openSet_ANA :: " << _openSet_ANA.size() << endl;
+        if(CheckCollision(currentNode))
+            continue;
+        else{
+
+            if(currentNode->getEKey() < _E_ANA){
+                cout << "_E_ANA :: " << _E_ANA << endl;
+                _E_ANA = currentNode->getEKey();
+            }
+            if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
+                _G_ANA = currentNode->getGCost();
+                _goalNode->setParentNode(currentNode);
+                vector<NodePtr> path = GetAStarPath();
+                _pathAStar = path;
+
+                vector< vector<dReal> > configPath;
+                configPath.reserve(path.size());
+                for(NodePtr pnode : path)
+                    configPath.push_back(pnode->getConfiguration());
+
+                endTime = clock();
+                DrawPath(configPath);
+                return;
+            }
+
+            vector<NodePtr> neighbors = GetNeighbors(currentNode);
+            for(NodePtr neighbor : neighbors){
+                neighbor->setGCost(currentNode->getGCost() + UnweightedDistance(currentNode, neighbor));
+                neighbor->setHCost(UnweightedDistance(neighbor, _goalNode));
+                neighbor->setFCost(neighbor->getGCost() + _epsilon * neighbor->getHCost());
+                float temp_h = neighbor->getHCost();
+                float temp_g = neighbor->getGCost();
+                neighbor->setEKey(_G_ANA - temp_g / temp_h);
+
+                multiset<NodePtr>::iterator it1 = FindInOpenSet_ANA(neighbor);
+                if(it1 != _openSet_ANA.end()){
+                    NodePtr nodeInOpenSet = *it1;
+                    if(nodeInOpenSet->getFCost() < neighbor->getFCost())
+                        continue;
+                    else
+                        _openSet_ANA.erase(it1);
+                }
+
+                if(neighbor->getGCost() + neighbor->getHCost() < _G_ANA){
+                    _openSet_ANA.insert(neighbor);
+                }
+            }
+
+        }
+    }
+
+     cout << "Path does not exist " <<  _openSet_ANA.size() << endl;
+     return;
+  }
+
+  void updateOpenList(){
+        multiset<NodePtr>::iterator it;
+        for(it = _openSet_ANA.begin(); it != _openSet_ANA.end(); ++it){
+            NodePtr temp = *it;
+            if(temp->getFCost() > _G_ANA){
+                _openSet_ANA.erase(it++);
+            }
+        }
   }
 
 
@@ -1148,6 +1252,16 @@ public:
     return it;
   }
 
+  /* Returns an iterator to the node in the open set. Returns end if not found. */
+  multiset<NodePtr>::iterator FindInOpenSet_ANA(NodePtr node){
+    multiset<NodePtr>::iterator it;
+    for(it = _openSet_ANA.begin(); it != _openSet_ANA.end(); ++it){
+      if(**it == *node)
+        return it;
+    }
+    return it;
+  }
+
   /* Returns an iterator to the node in the closed set. Returns end if not found. */
   vector<NodePtr>::iterator FindInClosedSet(NodePtr node){
     vector<NodePtr>::iterator it;
@@ -1310,6 +1424,9 @@ private:
   float _gaussVarY = 1;
   float _gaussVarZ = 1;
 
+  float _G_ANA;
+  float _E_ANA;
+
   int count_print = 0;
 
   struct NodePriority{
@@ -1318,11 +1435,19 @@ private:
     }
   };
 
+  struct NodePriority_ANA{
+    bool operator()(const NodePtr left, const NodePtr right) const{
+      return left->getEKey() < right->getEKey();
+    }
+  };
+
   char pause;
 
   multiset<NodePtr, NodePriority> _inconsSet;
   multiset<NodePtr, NodePriority> _openSet;
-  multiset<NodePtr, NodePriority> _closeSet;
+
+  multiset<NodePtr, NodePriority_ANA> _openSet_ANA;
+
   vector<NodePtr> _closedSet;
   dReal STEP_SIZE;
   dReal GOAL_BIAS;
