@@ -480,10 +480,6 @@ public:
 
           cout << "Found a path!!!" << endl;
           cout << "Executing the path." << endl;
-
-          //        cout << "Number of nodes explored :" << endl;
-          //        cout << tree->getSize() << endl;
-
           cout << "Path length: " << configPath.size() << endl;
 
           endTime = clock();
@@ -492,8 +488,6 @@ public:
           double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
 
           cout << "Time for computing the path: " << timeForAlgorithm << endl;
-
-          //        WriteStuffToFile(timeForAlgorithm, timeForSmoothing, tree->getSize(), configPath.size(), configPath2.size());
 
           ExecuteTrajectory(configPath);
           cout << "Path found!" << endl;
@@ -580,13 +574,21 @@ public:
     _E_ANA = 99999;
     InitANAStar(sout, sin);
     cout << "Inside ANA Star .. " << _openSet_ANA.size() << endl;
+    _startNode->setEKey(_G_ANA);
 
     while(_openSet_ANA.size() != 0){
         cout << "Im here" << endl;
         ImproveSolution();
         cout << "Current Optimal Solution _E_ANA :: " << _E_ANA << endl;
+        //if(_E_ANA < 1.01){
+        //    return true;
+        //}
+        cout << "OpenSet BEFORE :: "<< _openSet_ANA.size() << endl;
         updateOpenList();
+        cout << "OpenSet AFTER:: "<< _openSet_ANA.size() << endl;
     }
+    DrawPath(_configPath_ANA);
+    ExecuteTrajectory(_configPath_ANA);
 
     cout << "Ana Finished " << endl;
     return true;
@@ -798,13 +800,93 @@ public:
   void ImproveSolution(){
 
     while(_openSet_ANA.size() != 0){
+
+            currentNode = *_openSet_ANA.begin();
+            _openSet_ANA.erase(_openSet_ANA.begin());
+
+            //DrawPoint(currentNode);
+
+            if(CheckCollision(currentNode))
+                continue;
+            else{
+                //cout << "current e(s) --> " << currentNode->getEKey() <<"   :::::  current _E_ANA --->" << _E_ANA << endl;
+                if(currentNode->getEKey() < _E_ANA){
+                    //cout << "_E_ANA from ---> " << _E_ANA ;
+                    _E_ANA = currentNode->getEKey();
+                    //cout << "   to---> " << _E_ANA << endl;
+                }
+                //cout <<  UnweightedDistance(currentNode, _goalNode) << endl;
+                if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
+                    cout << "_G_ANA from -------------------> " << _G_ANA ;
+                    //_E_ANA = currentNode->getEKey();
+                    _G_ANA = currentNode->getGCost();
+                    cout << "   to---> " << _G_ANA << endl;
+                    _goalNode->setParentNode(currentNode);
+                    vector<NodePtr> path = GetAStarPath();
+                    _pathAStar = path;
+
+                    vector< vector<dReal> > configPath;
+                    configPath.reserve(path.size());
+                    for(NodePtr pnode : path)
+                        configPath.push_back(pnode->getConfiguration());
+
+                    endTime = clock();
+                    //DrawPath(configPath);
+                    //ExecuteTrajectory(configPath);
+                    _configPath_ANA = configPath;
+                    cout << "Goal Found ..." << endl;
+                    return;
+                }
+
+            vector<NodePtr> neighbors = GetNeighbors(currentNode);
+            for(NodePtr neighbor : neighbors){
+                neighbor->setGCost(currentNode->getGCost() + UnweightedDistance(currentNode, neighbor));
+                neighbor->setHCost(UnweightedDistance(neighbor, _goalNode));
+                neighbor->setFCost(neighbor->getGCost() + neighbor->getHCost());
+                float temp_h = neighbor->getHCost();
+                float temp_g = neighbor->getGCost();
+                neighbor->setEKey((_G_ANA - temp_g )/ temp_h);
+
+                multiset<NodePtr>::iterator it1 = FindInOpenSet_ANA(neighbor);
+                if(it1 != _openSet_ANA.end()){
+                    NodePtr nodeInOpenSet = *it1;
+                    if(nodeInOpenSet->getFCost() < neighbor->getFCost())
+                        continue;
+                    else
+                        _openSet_ANA.erase(it1);
+                }
+
+                vector<NodePtr>::iterator it2 = FindInClosedSet(neighbor);
+                if(it2 != _closedSet.end()){
+                    NodePtr nodeInClosedSet = *it2;
+                    if(nodeInClosedSet->getFCost() < neighbor->getFCost())
+                        continue;
+                    else
+                        _closedSet.erase(it2);
+                }
+
+                if(neighbor->getGCost() + neighbor->getHCost() < _G_ANA)
+                    _openSet_ANA.insert(neighbor);
+            }
+                _closedSet.push_back(currentNode);
+            }
+        }
+        cout << "Path doesn't exist." << endl;
+        return;
+    }
+    /*
+    while(_openSet_ANA.size() != 0){
+
         currentNode = *_openSet_ANA.begin();
         _openSet_ANA.erase(_openSet_ANA.begin());
+
         DrawPoint(currentNode);
-        cout << "_openSet_ANA :: " << _openSet_ANA.size() << endl;
-        if(CheckCollision(currentNode))
+        cout << "_openSet_ANA :: " << _openSet_ANA.size()  << " -----  "<< UnweightedDistance(_goalNode, currentNode) << endl;
+
+        if(CheckCollision(currentNode)){
+            cout << "Collision" << endl;
             continue;
-        else{
+        }else{
 
             if(currentNode->getEKey() < _E_ANA){
                 cout << "_E_ANA :: " << _E_ANA << endl;
@@ -844,26 +926,39 @@ public:
                         _openSet_ANA.erase(it1);
                 }
 
+                vector<NodePtr>::iterator it2 = FindInClosedSet(neighbor);
+                if(it2 != _closedSet.end()){
+                    NodePtr nodeInClosedSet = *it2;
+                    if(nodeInClosedSet->getFCost() < neighbor->getFCost())
+                        continue;
+                    else
+                        _closedSet.erase(it2);
+                }
+
                 if(neighbor->getGCost() + neighbor->getHCost() < _G_ANA){
                     _openSet_ANA.insert(neighbor);
+                    //cout << neighbor->getConfiguration()[0] << " . " << neighbor->getConfiguration()[1] << " . " << neighbor->getConfiguration()[2] << " . " << endl;
                 }
             }
+
+            _closedSet.push_back(currentNode);
 
         }
     }
 
      cout << "Path does not exist " <<  _openSet_ANA.size() << endl;
-     return;
-  }
+     return;*/
+  //}
 
   void updateOpenList(){
         multiset<NodePtr>::iterator it;
         for(it = _openSet_ANA.begin(); it != _openSet_ANA.end(); ++it){
             NodePtr temp = *it;
             if(temp->getFCost() > _G_ANA){
-                _openSet_ANA.erase(it++);
+                _openSet_ANA.erase(it);
             }
         }
+
   }
 
 
@@ -1426,6 +1521,7 @@ private:
 
   float _G_ANA;
   float _E_ANA;
+  vector< vector<dReal> > _configPath_ANA;
 
   int count_print = 0;
 
@@ -1437,7 +1533,7 @@ private:
 
   struct NodePriority_ANA{
     bool operator()(const NodePtr left, const NodePtr right) const{
-      return left->getEKey() < right->getEKey();
+      return left->getEKey() > right->getEKey();
     }
   };
 

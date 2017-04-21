@@ -129,7 +129,7 @@ def run():
 
     with env:
         goalConfig = [3,3,1]
-        RRTModule.SendCommand("set_step_size 0.2")
+        RRTModule.SendCommand("set_step_size 0.4")
         RRTModule.SendCommand("setbias 00")
 
         sinput1 = 'anastar ' + str(goalConfig)
