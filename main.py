@@ -119,9 +119,10 @@ def run():
     with env:
     	# Phase-I
         goalConfig = [3,3,1]
+        raw_input("Press enter to continue...")
         RRTModule.SendCommand('set_step_size 0.4')
 
-        sinput1 = 'astar ' + str(goalConfig)
+        sinput1 = 'arastar ' + str(goalConfig)
 
         # sinput = 'help'
         print '---------START-------------'
@@ -137,7 +138,7 @@ def run():
         bounds = get_bounds(robot,4)
         robot.SetActiveDOFValues(startConfig)
         RRTModule.SendCommand('set_step_size 0.2')
-        sinput2 = 'rrtconnect ' + str(goalConfig)
+        sinput2 = 'birrt ' + str(goalConfig)
         print "Now Running : " , sinput2
         cmdout = RRTModule.SendCommand(sinput2)
 
