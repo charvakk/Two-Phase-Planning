@@ -720,14 +720,17 @@ public:
 
   /*Improve Path function for ARA | ANA takes care for inconsistent list */
   void ImprovePath(){
+<<<<<<< HEAD
       //cout << "Im here also :: " << _openSet_ANA.size() << endl;
       while(_openSet.size() != 0){
         //    cout << "Inside Improve Path :: " << _openSet_ANA.size() << endl;
             currentNode = *_openSet.begin();
             _openSet.erase(_openSet.begin());
+=======
     while(_openSet.size() != 0){
       currentNode = *_openSet.begin();
       _openSet.erase(_openSet.begin());
+>>>>>>> 72118d79c848465c470be32001a8803f8535f060
 
       DrawPoint(currentNode);
       count_print++;
@@ -750,8 +753,10 @@ public:
           endTime = clock();
           DrawPath(configPath);
 
+<<<<<<< HEAD
                     return;
                 }
+=======
           //ExecuteTrajectory(configPath);
 
           //TO GO ONE BY ONE  :::: REMOVVE IT
@@ -760,6 +765,7 @@ public:
 
           return;
         }
+>>>>>>> 72118d79c848465c470be32001a8803f8535f060
 
         vector<NodePtr> neighbors = GetNeighbors(currentNode);
         for(NodePtr neighbor : neighbors){
