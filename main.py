@@ -87,10 +87,12 @@ def init():
     	params = parser.Yaml(file_name=args.params)
 	global env
 	env = rave.Environment()
-   	#env.SetViewer('qtcoin')
+   	env.SetViewer('qtcoin')
 	env.Reset()
 	# load a scene from ProjectRoom environment XML file
-	env.Load(params.scene)
+	# env.Load(params.scene)
+	# env.Load('scenes/hw3.env.xml')
+	env.Load('scenes/env2.env.xml')
 	env.UpdatePublishedBodies()
 	time.sleep(0.1)
 
@@ -107,13 +109,14 @@ def init():
 
 
 @rave.with_destroy
-def run(p1, p2, gBias, pBias):
+# def run(p1, p2, gBias, pBias):
+def run2(p1, p2):
     init()
     # Initializing the plugin
     RaveInitialize()
     RaveLoadPlugin('build/2phase_planning')
     RRTModule = RaveCreateModule(env, 'rrt_module')
-    startConfig = [0,0,5]
+    startConfig = [0,-1,0.5]
     robot.SetActiveDOFValues(startConfig)
 
     # p1 = 'astar '
@@ -121,11 +124,12 @@ def run(p1, p2, gBias, pBias):
     # print p1 + p2
     with env:
     	# Phase-I
-        goalConfig = [3,3,1]
-	fileName = 'data/' + p1 + p2 + str(gBias) + str(pBias) + '.csv'
+        goalConfig = [1.5,-1,1]
+	# fileName = 'data/' + p1 + p2 + str(gBias) + str(pBias) + '.csv'
+	fileName = 'data/' + p1 + p2 + '.csv'
 	print fileName
         RRTModule.SendCommand('set_file_name ' + fileName)
-        RRTModule.SendCommand('set_step_size 0.4')
+        RRTModule.SendCommand('set_step_size 0.2')
 
         sinput1 = p1 + ' ' + str(goalConfig)
         # sinput = 'help'
@@ -134,33 +138,91 @@ def run(p1, p2, gBias, pBias):
         cmdout = RRTModule.SendCommand(sinput1)
 
 	# Phase-II
-	RRTModule.SendCommand('set_goal_bias ' + str(gBias))
-	RRTModule.SendCommand('set_p1_bias ' + str(pBias))
-        startConfig = [0, 0, 5, 0]
-        goalConfig = [3, 3, 1, 0]
+	# RRTModule.SendCommand('set_goal_bias ' + str(gBias))
+	# RRTModule.SendCommand('set_p1_bias ' + str(pBias))
+        # startConfig = [0, 0, 5, 0]
+        # goalConfig = [3, 3, 1, 0]
+        startConfig = [0, -1, 0.5, 0]
+        goalConfig = [1.5, -1, 1, 0]
         bounds = get_bounds(robot,4)
         robot.SetActiveDOFValues(startConfig)
-        RRTModule.SendCommand('set_step_size 0.2')
+        RRTModule.SendCommand('set_step_size 0.1')
         sinput2 = p2 + ' ' + str(goalConfig)
         # print "Now Running : " , sinput2
         cmdout = RRTModule.SendCommand(sinput2)
+    raw_input("Press enter to exit...")
 
         # print '---------FINISH------------'
+
+@rave.with_destroy
+def run1(p2):
+    init()
+    # raw_input("Press enter to exit...")
+    # Initializing the plugin
+    RaveInitialize()
+    RaveLoadPlugin('build/2phase_planning')
+    RRTModule = RaveCreateModule(env, 'rrt_module')
+    # startConfig = [0,0,5]
+    # robot.SetActiveDOFValues(startConfig)
+
+    # p1 = 'astar '
+    # p2 = 'rrtconnect '
+    # print p1 + p2
+    with env:
+    	# Phase-I
+        # goalConfig = [3,3,1]
+	fileName = 'data/only' + p2 + '.csv'
+	print fileName
+        RRTModule.SendCommand('set_file_name ' + fileName)
+        RRTModule.SendCommand('only_p2 ' + 'true')
+        # RRTModule.SendCommand('set_step_size 0.4')
+
+        # sinput1 = p1 + ' ' + str(goalConfig)
+        # sinput = 'help'
+        # print '---------START-------------'
+        # print "Now Running : " , sinput1
+        # cmdout = RRTModule.SendCommand(sinput1)
+
+	# Phase-II
+	# RRTModule.SendCommand('set_goal_bias ' + str(gBias))
+	# RRTModule.SendCommand('set_p1_bias ' + str(pBias))
+        startConfig = [0, -1, 0.5, 0]
+        goalConfig = [1.5, -1, 1, 0]
+        bounds = get_bounds(robot,4)
+        robot.SetActiveDOFValues(startConfig)
+        RRTModule.SendCommand('set_step_size 0.1')
+        sinput2 = p2 + ' ' + str(goalConfig)
+        # print "Now Running : " , sinput2
+        cmdout = RRTModule.SendCommand(sinput2)
+    
+	# waitrobot(robot)   
+	raw_input("Press enter to exit...")
 
 if __name__ == "__main__":
     rave.RaveSetDebugLevel(rave.DebugLevel.Verbose)
     #init()
-    phase1 = ['arastar']
-    phase2 = ['rrtstar', 'birrt']
-    goalBiases = [10, 20, 30, 40, 50]
 
-    for p1 in phase1:
-    	for p2 in phase2:
-    		for gBias in goalBiases:
-    			for pBias in range(gBias+10, 100, 10):
-    				for expNo in range(1,11):
-	    				run(p1, p2, gBias, pBias)
+    # phase1 = ['arastar']
+    # phase2 = ['rrtconnect','rrtstar', 'birrt']
+    # goalBiases = [10, 20, 30, 40, 50]
+
+    # run1('rrtconnect')
+    run2('astar', 'rrtconnect')
+    # for expNo in range(1, 51):
+    	# run2('astar', 'rrtconnect')
+
+    # for p2 in phase2:
+    	# for expNo in range(1,51):
+    		# run1(p2)
+
+    # for p1 in phase1:
+    	# for p2 in phase2:
+    #		# for gBias in goalBiases:
+    #			# for pBias in range(gBias+10, 100, 10):
+    				# for expNo in range(1,51):
+	#   				# run(p1, p2, gBias, pBias)
+	    				# run2(p1, p2)
 					
-	#waitrobot(robot)
+    # waitrobot(robot)
 
-    #raw_input("Press enter to exit...")
+    # raw_input("Press enter to exit...")

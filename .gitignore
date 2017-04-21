@@ -1,2 +1,6 @@
 build/
 quadrotor/
+data/
+data_environment1/
+time_data_env1/
+*.csv

@@ -170,10 +170,11 @@ class rrt_module : public ModuleBase {
 public:
   rrt_module(EnvironmentBasePtr penv, std::istream& ss) : ModuleBase(penv),
   STEP_SIZE(0.4),
-  GOAL_BIAS(31),
-  P1_BIAS(50),
+  GOAL_BIAS(10),
+  P1_BIAS(30),
   _pathIndex(0),
-  _drawOn(true)
+  _drawOn(true),
+  _onlyP2("false")
   {
     _penv = penv;
     __description = "Implementation of RRT-Connect for RBE 550.";
@@ -196,6 +197,8 @@ public:
     RegisterCommand("set_step_size",boost::bind(&rrt_module::SetStepSize,this,_1,_2),
                         "Sets the Step Size for planning with the AStar variants. Default: 0.4");
     RegisterCommand("set_file_name",boost::bind(&rrt_module::SetFileName,this,_1,_2),
+                    "Sets the file name for saving experiment results");
+    RegisterCommand("only_p2",boost::bind(&rrt_module::OnlyP2,this,_1,_2),
                     "Sets the file name for saving experiment results");
   }
 
@@ -251,6 +254,20 @@ public:
     return true;
   }
 
+  bool OnlyP2(ostream& sout, istream& sin){
+      char input[INPUT_SIZE];
+      try{
+        vector<string> temp;
+        sin.getline(input, INPUT_SIZE);
+        utils::TokenizeString(input, "[ ,]", temp);
+        _onlyP2 = temp[0];
+      }catch(exception &e){
+        cout << e.what() << endl;
+        return false;
+      }
+      return true;
+    }
+
 
   /*-----------------------------------------------------------------------------Bi-Directional RRT----------------------------------------------------------------*/
 
@@ -268,8 +285,12 @@ public:
     treeB->addNode(_goalNode);
 
     for(int k = 0; k < COMPUTATION_TIME; ++k){
-      NodePtr randomNode = CreateRandomNodeWithP1Bias();
-//      NodePtr randomNode = CreateRandomNode();
+      NodePtr randomNode;
+      if(_onlyP2 == "true")
+        randomNode = CreateRandomNode();
+      else
+        randomNode = CreateRandomNodeWithP1Bias();
+
 
       if(Extend(treeA, randomNode) != "Trapped"){
         if(Connect(treeB, treeA->getMostRecentNode()) == "Reached"){
@@ -366,7 +387,11 @@ public:
     for(int k = 0; k < COMPUTATION_TIME; ++k){
       //NodePtr randomNode = CreateRandomNodeWithBias();
       //cout << _pathAStar.size() << endl;
-      NodePtr randomNode = CreateRandomNodeWithGoalnP1Bias();
+      NodePtr randomNode;
+      if(_onlyP2 == "true")
+        randomNode = CreateRandomNodeWithGoalBias();
+      else
+        randomNode = CreateRandomNodeWithGoalnP1Bias();
 
       string status = Connect(tree, randomNode);
       if(status == "GoalReached"){
@@ -377,6 +402,7 @@ public:
           cout << "Goal not found in tree" << endl;
         }
 
+        // here
 //        vector< vector<dReal> > configPath;
 //        configPath.reserve(path.size());
 //        for(NodePtr pnode : path)
@@ -390,14 +416,15 @@ public:
 //        cout << tree->getSize() << endl;
 //
 //        cout << "Path length: " << configPath.size() << endl;
-
+        //to here
         endTime = clock();
 
 //        DrawPath(configPath, red);
 //        DrawPath(configPath);
 
+        //here
 //        ShortcutSmoothing(path);
-
+//
 //        vector< vector<dReal> > configPath2;
 //        configPath2.reserve(path.size());
 //        for(NodePtr pnode : path)
@@ -409,7 +436,7 @@ public:
 //
 //        DrawPath(configPath2, blue);
 //        DrawPath(configPath2);
-
+        //to here
         double timeForAlgorithm = (endTime-startTime)/(double)CLOCKS_PER_SEC;
 //        double timeForSmoothing = (endAfterSmoothing-endTime)/(double)CLOCKS_PER_SEC;
 
@@ -446,7 +473,7 @@ public:
 
       DrawPoint(currentNode);
 
-      if(CheckCollision(currentNode))
+      if(CheckCollision(currentNode) || !InLimits(currentNode))
         continue;
       else{
         if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
@@ -570,7 +597,11 @@ public:
     tree->addNode(_startNode);
 
     for(int k = 0; k < COMPUTATION_TIME; ++k){
-      NodePtr randomNode = CreateRandomNodeWithGoalnP1Bias();
+      NodePtr randomNode;
+      if(_onlyP2 == "true")
+        randomNode = CreateRandomNodeWithGoalBias();
+      else
+        randomNode = CreateRandomNodeWithGoalnP1Bias();
 
       string status = RRTStarExtend(tree, randomNode);
       if(status == "GoalReached"){
@@ -696,16 +727,26 @@ public:
     _robot->GetActiveDOFValues(_startConfig);
     _goalConfig = GetInputAsVector(so, si);
     _robot->GetActiveDOFLimits(_activeLowerLimits, _activeUpperLimits);
-//    assert(_goalConfig.size() == 7 && "goalConfig should be of size 7!");
-//    assert(_startConfig.size() == 7 && "startConfig wasn't size 7 :(");
 
     _activeDOFRanges.reserve(_activeLowerLimits.size());
     for(size_t i = 0; i < _activeLowerLimits.size(); ++i){
+      if(i == 0){
+        _activeUpperLimits[i] = 4;
+        _activeLowerLimits[i] = -4;
+      }
+      if(i == 1){
+        _activeUpperLimits[i] = 2;
+        _activeLowerLimits[i] = -2;
+      }
+      if(i == 2){
+        _activeUpperLimits[i] = 2.5;
+        _activeLowerLimits[i] = 0;
+      }
       if(i == 3){// || i == 6){
         _activeUpperLimits[i] = M_PI;
         _activeLowerLimits[i] = -M_PI;
       }
-//      cout << "lower: " << _activeLowerLimits[i] << " upper: " << _activeUpperLimits[i] << endl;
+      cout << "lower: " << _activeLowerLimits[i] << " upper: " << _activeUpperLimits[i] << endl;
       _activeDOFRanges[i] = _activeUpperLimits[i]-_activeLowerLimits[i];
     }
 
@@ -729,7 +770,32 @@ public:
 
     // Parse goal config - might need to change INPUT_SIZE
     _goalConfig = GetInputAsVector(so, si);
+    _robot->GetActiveDOFLimits(_activeLowerLimits, _activeUpperLimits);
 
+    _activeDOFRanges.reserve(_activeLowerLimits.size());
+    for(size_t i = 0; i < _activeLowerLimits.size(); ++i){
+      if(i == 0){
+        _activeUpperLimits[i] = 4;
+        _activeLowerLimits[i] = -4;
+      }
+      if(i == 1){
+        _activeUpperLimits[i] = 2;
+        _activeLowerLimits[i] = -2;
+      }
+      if(i == 2){
+        _activeUpperLimits[i] = 2.5;
+        _activeLowerLimits[i] = 0;
+      }
+      if(i == 3){// || i == 6){
+        _activeUpperLimits[i] = M_PI;
+        _activeLowerLimits[i] = -M_PI;
+      }
+      cout << "lower: " << _activeLowerLimits[i] << " upper: " << _activeUpperLimits[i] << endl;
+      _activeDOFRanges[i] = _activeUpperLimits[i]-_activeLowerLimits[i];
+    }
+
+    //    _dofWeights = {3.17104, 2.75674, 2.2325, 1.78948, 0, 0.809013, 0};
+    _dofWeights = {1, 1, 1};
     // Get DOF limits?
 
     // Get Ranges?
@@ -761,7 +827,7 @@ public:
       DrawPoint(currentNode);
       count_print++;
 
-      if(CheckCollision(currentNode))
+      if(CheckCollision(currentNode) || !InLimits(currentNode))
         continue;
       else{
         if(UnweightedDistance(currentNode, _goalNode) < STEP_SIZE){
@@ -1058,6 +1124,7 @@ public:
       }while(status == "Advanced");
     } catch (exception &e) {
       cout << "Connect exception" << endl;
+      cout << e.what() << endl;
     }
     return status;
   }
@@ -1491,6 +1558,7 @@ private:
   int _pathIndex;
   bool _drawOn;
   string _fileName;
+  string _onlyP2;
   };
 
 
