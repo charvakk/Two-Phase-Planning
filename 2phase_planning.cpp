@@ -188,7 +188,9 @@ public:
                     "Plans and executes path to given goal configuration using AStar.");
     RegisterCommand("arastar",boost::bind(&rrt_module::ARAStar,this,_1,_2),
                     "Plans and executes path to given goal configuration using ARAStar.");
-    RegisterCommand("set_goal_bias",boost::bind(&rrt_module::SetGoalBias,this,_1,_2),
+    RegisterCommand("anastar",boost::bind(&rrt_module::ANAStar,this,_1,_2),
+                    "Plans and executes path to given goal configuration using ANAStar.");
+    RegisterCommand("set_goal_bias",boost::bind(&rrt_module::SetBias,this,_1,_2),
                     "Sets the goal bias for planning with the RRT-Connect. Default: 31");
     RegisterCommand("set_p1_bias",boost::bind(&rrt_module::SetP1Bias,this,_1,_2),
                     "Sets the phase-1 bias for planning with the RRTs. Default: 31");
@@ -196,12 +198,7 @@ public:
                         "Test");
     RegisterCommand("set_step_size",boost::bind(&rrt_module::SetStepSize,this,_1,_2),
                         "Sets the Step Size for planning with the AStar variants. Default: 0.4");
-    RegisterCommand("set_file_name",boost::bind(&rrt_module::SetFileName,this,_1,_2),
-                    "Sets the file name for saving experiment results");
-    RegisterCommand("only_p2",boost::bind(&rrt_module::OnlyP2,this,_1,_2),
-                    "Sets the file name for saving experiment results");
   }
-
   virtual ~rrt_module() {}
 
   bool SetGoalBias(ostream& sout, istream& sin){
@@ -213,18 +210,6 @@ public:
       return false;
     }
     cout << "Goal bias set to " << GOAL_BIAS << endl;
-    return true;
-  }
-
-  bool SetP1Bias(ostream& sout, istream& sin){
-    vector<dReal> in = GetInputAsVector(sout, sin);
-    try{
-      P1_BIAS = in[0];
-    }catch(exception &e){
-      cout << e.what() << endl;
-      return false;
-    }
-    cout << "Phase-1 bias set to " << P1_BIAS << endl;
     return true;
   }
 
@@ -240,42 +225,12 @@ public:
     return true;
   }
 
-  bool SetFileName(ostream& sout, istream& sin){
-    char input[INPUT_SIZE];
-    try{
-      vector<string> temp;
-      sin.getline(input, INPUT_SIZE);
-      utils::TokenizeString(input, "[ ,]", temp);
-      _fileName = temp[0];
-    }catch(exception &e){
-      cout << e.what() << endl;
-      return false;
-    }
-    return true;
-  }
-
-  bool OnlyP2(ostream& sout, istream& sin){
-      char input[INPUT_SIZE];
-      try{
-        vector<string> temp;
-        sin.getline(input, INPUT_SIZE);
-        utils::TokenizeString(input, "[ ,]", temp);
-        _onlyP2 = temp[0];
-      }catch(exception &e){
-        cout << e.what() << endl;
-        return false;
-      }
-      return true;
-    }
-
-
   /*-----------------------------------------------------------------------------Bi-Directional RRT----------------------------------------------------------------*/
 
   bool BiRRT(ostream& sout, istream& sin){
 
     // Initialize private members from the input
     Init(sout, sin);
-    bool reverse = true;
 
     // Initialize two trees with the start and goal nodes at the respective roots.
     TreePtr treeA(new NodeTree());
@@ -316,10 +271,6 @@ public:
 //          configPath.reserve(fullPath.size());
 //          for(NodePtr pnode : fullPath)
 //            configPath.push_back(pnode->getConfiguration());
-
-//          for(auto config : configPath){
-//            cout << config[0] <<  " " << config[1] << " " << config[2] << " " << config[3] << endl;
-//          }
 
 //          cout << "Found a path!!!" << endl;
 //          cout << "Executing the path." << endl;
@@ -665,7 +616,36 @@ public:
   }
 
   /*--------------------------------------------------------------------------------RRTStar--------------------------------------------------------------------*/
+  
 
+  /*--------------------------------------------------------------------------------ANAStar--------------------------------------------------------------------*/
+
+  bool ANAStar(ostream& sout, istream& sin){
+    _G_ANA = 99999;
+    _E_ANA = 99999;
+    InitANAStar(sout, sin);
+//    cout << "Inside ANA Star .. " << _openSet_ANA.size() << endl;
+    _startNode->setEKey(_G_ANA);
+
+    while(_openSet_ANA.size() != 0){
+//        cout << "Im here" << endl;
+        ImproveSolution();
+//        cout << "Current Optimal Solution _E_ANA :: " << _E_ANA << endl;
+        //if(_E_ANA < 1.01){
+        //    return true;
+        //}
+//        cout << "OpenSet BEFORE :: "<< _openSet_ANA.size() << endl;
+        updateOpenList();
+//        cout << "OpenSet AFTER:: "<< _openSet_ANA.size() << endl;
+    }
+//    DrawPath(_configPath_ANA);
+//    ExecuteTrajectory(_configPath_ANA);
+
+//    cout << "Ana Finished " << endl;
+    return true;
+  }
+
+  /*--------------------------------------------------------------------------------ANAStar--------------------------------------------------------------------*/
 
   bool Test(ostream& sout, istream& sin){
     NodePtr node1(new Node());
@@ -763,7 +743,6 @@ public:
     // Get robot
     _penv->GetRobots(_robots);
     _robot = _robots.at(0);
-
 
     // Get active DOF values
     _robot->GetActiveDOFValues(_startConfig);
@@ -983,72 +962,8 @@ public:
 
  }*/
 
-  /* Returns a random node biased towards goal and the path calculated from Phase 1. */
-  NodePtr CreateRandomNodeWithGoalnP1Bias(){
-    NodePtr randomNode(new Node());
 
-    if(RandomNumberGenerator() <= GOAL_BIAS){
-      return _goalNode;
 
-    }else if(RandomNumberGenerator() <= P1_BIAS){
-//      cout << "Picking from Path." << endl;
-      NodePtr tempRandNode = CreateRandomNode();
-      vector<dReal> randomConfig;
-//      cout << "Path index: " << _pathIndex << endl;
-      NodePtr pathNode = _pathAStar[_pathIndex];
-      _pathIndex = (_pathIndex + 1) % _pathAStar.size();
-
-      randomConfig = pathNode->getConfiguration();
-      for(size_t i = 3; i < _activeLowerLimits.size(); ++i){
-        randomConfig.push_back(tempRandNode->getConfiguration().at(i));
-      }
-      randomNode->setConfiguration(randomConfig);
-      return randomNode;
-
-    }else{
-      vector<dReal> randomConfig(_activeLowerLimits.size());
-      do{
-        for(size_t i = 0; i < _activeLowerLimits.size(); ++i){
-          randomConfig[i] = static_cast<dReal>((RandomNumberGenerator()/100 * (_activeDOFRanges[i])) + _activeLowerLimits[i]);
-        }
-        randomNode->setConfiguration(randomConfig);
-      }while(CheckCollision(randomNode));
-
-      return randomNode;
-    }
-  }
-
-  /* Returns a random node biased towards the path calculated from Phase 1. */
-  NodePtr CreateRandomNodeWithP1Bias(){
-    NodePtr randomNode(new Node());
-
-    if(RandomNumberGenerator() <= P1_BIAS){
-      //      cout << "Picking from Path." << endl;
-      NodePtr tempRandNode = CreateRandomNode();
-      vector<dReal> randomConfig;
-      //      cout << "Path index: " << _pathIndex << endl;
-      NodePtr pathNode = _pathAStar[_pathIndex];
-      _pathIndex = (_pathIndex + 1) % _pathAStar.size();
-
-      randomConfig = pathNode->getConfiguration();
-      for(size_t i = 3; i < _activeLowerLimits.size(); ++i){
-        randomConfig.push_back(tempRandNode->getConfiguration().at(i));
-      }
-      randomNode->setConfiguration(randomConfig);
-      return randomNode;
-
-    }else{
-      vector<dReal> randomConfig(_activeLowerLimits.size());
-      do{
-        for(size_t i = 0; i < _activeLowerLimits.size(); ++i){
-          randomConfig[i] = static_cast<dReal>((RandomNumberGenerator()/100 * (_activeDOFRanges[i])) + _activeLowerLimits[i]);
-        }
-        randomNode->setConfiguration(randomConfig);
-      }while(CheckCollision(randomNode));
-
-      return randomNode;
-    }
-  }
 
   /* Returns a random number between, and including, 0 and 99.*/
   float RandomNumberGenerator(){
@@ -1550,15 +1465,12 @@ private:
 
   multiset<NodePtr, NodePriority> _inconsSet;
   multiset<NodePtr, NodePriority> _openSet;
-  multiset<NodePtr, NodePriority> _closeSet;
+
+  multiset<NodePtr, NodePriority_ANA> _openSet_ANA;
+
   vector<NodePtr> _closedSet;
   dReal STEP_SIZE;
   dReal GOAL_BIAS;
-  dReal P1_BIAS;
-  int _pathIndex;
-  bool _drawOn;
-  string _fileName;
-  string _onlyP2;
   };
 
 

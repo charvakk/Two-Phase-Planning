@@ -29,6 +29,7 @@ private:
 
   /* Costs for A* variants. f = g + h */
   float m_ffCost, m_fgCost, m_fhCost;
+  float m_feKey;
 
   /* Pointer to the parent node. */
   NodePtr m_pparentNode;
@@ -66,6 +67,10 @@ public:
   float getHCost() const;
 
   void setHCost(float hCost);
+
+  float getEKey() const;
+
+  void setEKey(float eKey);
 };
 
 

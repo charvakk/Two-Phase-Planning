@@ -154,49 +154,6 @@ def run2(p1, p2):
 
         # print '---------FINISH------------'
 
-@rave.with_destroy
-def run1(p2):
-    init()
-    # raw_input("Press enter to exit...")
-    # Initializing the plugin
-    RaveInitialize()
-    RaveLoadPlugin('build/2phase_planning')
-    RRTModule = RaveCreateModule(env, 'rrt_module')
-    # startConfig = [0,0,5]
-    # robot.SetActiveDOFValues(startConfig)
-
-    # p1 = 'astar '
-    # p2 = 'rrtconnect '
-    # print p1 + p2
-    with env:
-    	# Phase-I
-        # goalConfig = [3,3,1]
-	fileName = 'data/only' + p2 + '.csv'
-	print fileName
-        RRTModule.SendCommand('set_file_name ' + fileName)
-        RRTModule.SendCommand('only_p2 ' + 'true')
-        # RRTModule.SendCommand('set_step_size 0.4')
-
-        # sinput1 = p1 + ' ' + str(goalConfig)
-        # sinput = 'help'
-        # print '---------START-------------'
-        # print "Now Running : " , sinput1
-        # cmdout = RRTModule.SendCommand(sinput1)
-
-	# Phase-II
-	# RRTModule.SendCommand('set_goal_bias ' + str(gBias))
-	# RRTModule.SendCommand('set_p1_bias ' + str(pBias))
-        startConfig = [0, -1, 0.5, 0]
-        goalConfig = [1.5, -1, 1, 0]
-        bounds = get_bounds(robot,4)
-        robot.SetActiveDOFValues(startConfig)
-        RRTModule.SendCommand('set_step_size 0.1')
-        sinput2 = p2 + ' ' + str(goalConfig)
-        # print "Now Running : " , sinput2
-        cmdout = RRTModule.SendCommand(sinput2)
-    
-	# waitrobot(robot)   
-	raw_input("Press enter to exit...")
 
 if __name__ == "__main__":
     rave.RaveSetDebugLevel(rave.DebugLevel.Verbose)
