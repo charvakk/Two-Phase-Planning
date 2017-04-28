@@ -573,24 +573,24 @@ public:
     _G_ANA = 99999;
     _E_ANA = 99999;
     InitANAStar(sout, sin);
-    cout << "Inside ANA Star .. " << _openSet_ANA.size() << endl;
+//    cout << "Inside ANA Star .. " << _openSet_ANA.size() << endl;
     _startNode->setEKey(_G_ANA);
 
     while(_openSet_ANA.size() != 0){
-        cout << "Im here" << endl;
+//        cout << "Im here" << endl;
         ImproveSolution();
-        cout << "Current Optimal Solution _E_ANA :: " << _E_ANA << endl;
+//        cout << "Current Optimal Solution _E_ANA :: " << _E_ANA << endl;
         //if(_E_ANA < 1.01){
         //    return true;
         //}
-        cout << "OpenSet BEFORE :: "<< _openSet_ANA.size() << endl;
+//        cout << "OpenSet BEFORE :: "<< _openSet_ANA.size() << endl;
         updateOpenList();
-        cout << "OpenSet AFTER:: "<< _openSet_ANA.size() << endl;
+//        cout << "OpenSet AFTER:: "<< _openSet_ANA.size() << endl;
     }
-    DrawPath(_configPath_ANA);
-    ExecuteTrajectory(_configPath_ANA);
+//    DrawPath(_configPath_ANA);
+//    ExecuteTrajectory(_configPath_ANA);
 
-    cout << "Ana Finished " << endl;
+//    cout << "Ana Finished " << endl;
     return true;
   }
 
